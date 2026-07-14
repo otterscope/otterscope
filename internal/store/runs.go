@@ -21,7 +21,18 @@ func (s *Store) UpsertSteps(ctx context.Context, steps []model.Step) error {
 		return err
 	}
 	defer tx.Rollback()
+	if err := upsertStepsTx(ctx, tx, steps); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
+// upsertStepsTx is the transactional body of UpsertSteps, shared with
+// IngestBatch.
+func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
+	if len(steps) == 0 {
+		return nil
+	}
 	ins, err := tx.PrepareContext(ctx, `
 		INSERT OR REPLACE INTO steps
 		(id, run_id, parent_id, kind, name, service, agent_name, status,
@@ -60,7 +71,7 @@ func (s *Store) UpsertSteps(ctx context.Context, steps []model.Step) error {
 			return fmt.Errorf("rederive run %s: %w", runID, err)
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 // rederiveRun recomputes a run row entirely from its steps, making run
