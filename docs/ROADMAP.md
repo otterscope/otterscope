@@ -18,7 +18,9 @@ Model-pricing table (maintained, overridable) → per-call/per-run cost; filter/
 Assertions (contains/regex/JSON-schema/latency/cost thresholds) and LLM-as-judge scoring over captured runs; score storage on the run; comparison view (this week vs last, version A vs B). Exit criterion: "did my prompt change make things worse?" answerable in-product.
 
 ## M5 — Ship it (Sep 14 – Sep 28)
-Static binaries via goreleaser (linux/darwin/windows), official Docker image, install docs, demo instance with sample data, README polish with screenshots/GIF, docs for each supported framework. Launch: Show HN + r/selfhosted + awesome-selfhosted PR.
+Full release pipeline per ADR-0004: GoReleaser on tag → GitHub Releases binaries (5 platforms), multi-arch Docker image on GHCR (`FROM scratch`), Homebrew tap, deb/rpm packages; `docker-compose.yml` example; install docs; demo instance with sample data; README polish with screenshots/GIF; docs for each supported framework. Launch: Show HN + r/selfhosted + awesome-selfhosted PR.
+
+The release pipeline itself is built early (during M1, exercised with `v0.0.x` pre-releases) so packaging is proven long before launch, not bolted on at the end.
 
 ## Later / explicitly deferred
 - DuckDB/Parquet analytics sidecar for large volumes (ADR-0002 keeps SQLite until proven insufficient)
