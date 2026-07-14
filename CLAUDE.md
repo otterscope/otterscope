@@ -26,6 +26,8 @@ Lightweight, self-hosted observability + evals for AI agents. One Go static bina
 - Frontend: `cd web && npm run build` produces `web/dist`, embedded by the server package.
 - Run locally: `go run ./cmd/otterscope serve` then POST OTLP to `:4318`, UI on `:8317`.
 - Test fixtures for ingest live in `internal/ingest/testdata/` as captured OTLP JSON payloads from real frameworks — extend these whenever a new framework/dialect quirk is found.
+- The store runs on a SINGLE SQLite connection: never hold a rows cursor open while issuing another query/write on the same call path — it self-deadlocks. Drain and close cursors first (see `EachRawBatch`).
+- When verifying, never pipe `go test`/`go build` through `tail`/`grep` without `set -o pipefail` — the pipe masks failures. Always run tests with an explicit `-timeout` well under 10m so hangs fail fast.
 
 ## Workflow
 
