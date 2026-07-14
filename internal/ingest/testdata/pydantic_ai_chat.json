@@ -1,0 +1,66 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "support-agent" } },
+          { "key": "telemetry.sdk.language", "value": { "stringValue": "python" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "pydantic-ai", "version": "0.4.2" },
+          "spans": [
+            {
+              "traceId": "5b8efff798038103d269b633813fc60c",
+              "spanId": "eee19b7ec3c1b174",
+              "name": "invoke_agent support-agent",
+              "kind": 1,
+              "startTimeUnixNano": "1752480000000000000",
+              "endTimeUnixNano": "1752480004500000000",
+              "attributes": [
+                { "key": "gen_ai.operation.name", "value": { "stringValue": "invoke_agent" } },
+                { "key": "gen_ai.agent.name", "value": { "stringValue": "support-agent" } },
+                { "key": "gen_ai.system", "value": { "stringValue": "anthropic" } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "5b8efff798038103d269b633813fc60c",
+              "spanId": "aaa19b7ec3c1b175",
+              "parentSpanId": "eee19b7ec3c1b174",
+              "name": "chat claude-sonnet-5",
+              "kind": 3,
+              "startTimeUnixNano": "1752480000100000000",
+              "endTimeUnixNano": "1752480002800000000",
+              "attributes": [
+                { "key": "gen_ai.operation.name", "value": { "stringValue": "chat" } },
+                { "key": "gen_ai.system", "value": { "stringValue": "anthropic" } },
+                { "key": "gen_ai.request.model", "value": { "stringValue": "claude-sonnet-5" } },
+                { "key": "gen_ai.response.model", "value": { "stringValue": "claude-sonnet-5" } },
+                { "key": "gen_ai.usage.input_tokens", "value": { "intValue": "812" } },
+                { "key": "gen_ai.usage.output_tokens", "value": { "intValue": "142" } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "5b8efff798038103d269b633813fc60c",
+              "spanId": "bbb19b7ec3c1b176",
+              "parentSpanId": "eee19b7ec3c1b174",
+              "name": "execute_tool get_ticket",
+              "kind": 1,
+              "startTimeUnixNano": "1752480003000000000",
+              "endTimeUnixNano": "1752480003400000000",
+              "attributes": [
+                { "key": "gen_ai.operation.name", "value": { "stringValue": "execute_tool" } },
+                { "key": "gen_ai.tool.name", "value": { "stringValue": "get_ticket" } },
+                { "key": "gen_ai.tool.call.id", "value": { "stringValue": "toolu_01A" } }
+              ],
+              "status": { "code": 1 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

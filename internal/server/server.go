@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/ingest"
 	"github.com/otterscope/otterscope/internal/store"
 )
 
@@ -63,12 +64,8 @@ func (s *Server) uiHandler() http.Handler {
 }
 
 func (s *Server) otlpHandler() http.Handler {
-	mux := http.NewServeMux()
-	// M1 replaces this stub with the real OTLP trace receiver.
-	mux.HandleFunc("POST /v1/traces", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "ingest not implemented yet (M1)"})
-	})
-	return mux
+	// LogSink until the store-backed sink lands (#2).
+	return ingest.NewHandler(ingest.LogSink{})
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
