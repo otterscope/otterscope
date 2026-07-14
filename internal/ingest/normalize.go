@@ -15,7 +15,9 @@ func Normalize(td ptrace.Traces) []model.Step {
 	rss := td.ResourceSpans()
 	for i := 0; i < rss.Len(); i++ {
 		rs := rss.At(i)
-		service := stringAttr(rs.Resource().Attributes(), "service.name")
+		// openinference.project.name is Phoenix-style project routing —
+		// the best service identity OpenInference emitters provide.
+		service := stringAttr(rs.Resource().Attributes(), "service.name", "openinference.project.name")
 		sss := rs.ScopeSpans()
 		for j := 0; j < sss.Len(); j++ {
 			spans := sss.At(j).Spans()
@@ -49,6 +51,14 @@ func normalizeSpan(sp ptrace.Span, service string) model.Step {
 		if st.Error == "" {
 			st.Error = "error"
 		}
+	}
+
+	if isOpenInference(attrs) {
+		applyOpenInference(sp, &st)
+		if st.End.Before(st.Start) {
+			st.End = st.Start
+		}
+		return st
 	}
 
 	switch op := stringAttr(attrs, "gen_ai.operation.name"); op {
