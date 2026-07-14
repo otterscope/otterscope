@@ -1,0 +1,73 @@
+# Release pipeline per ADR-0004. Run locally with:
+#   goreleaser release --snapshot --clean --skip docker
+version: 2
+
+project_name: otterscope
+
+builds:
+  - main: ./cmd/otterscope
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+nfpms:
+  - package_name: otterscope
+    formats: [deb, rpm]
+    maintainer: Kalin Dimitrov <kalin.dimitrov93@gmail.com>
+    description: Lightweight, self-hosted observability and evals for AI agents.
+    homepage: https://github.com/otterscope/otterscope
+    license: Apache-2.0
+    section: utils
+
+dockers:
+  - image_templates:
+      - ghcr.io/otterscope/otterscope:{{ .Version }}-amd64
+    use: buildx
+    goarch: amd64
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.source=https://github.com/otterscope/otterscope
+      - --label=org.opencontainers.image.description=Lightweight, self-hosted observability and evals for AI agents
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+  - image_templates:
+      - ghcr.io/otterscope/otterscope:{{ .Version }}-arm64
+    use: buildx
+    goarch: arm64
+    build_flag_templates:
+      - --platform=linux/arm64
+      - --label=org.opencontainers.image.source=https://github.com/otterscope/otterscope
+      - --label=org.opencontainers.image.description=Lightweight, self-hosted observability and evals for AI agents
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+
+docker_manifests:
+  - name_template: ghcr.io/otterscope/otterscope:{{ .Version }}
+    image_templates:
+      - ghcr.io/otterscope/otterscope:{{ .Version }}-amd64
+      - ghcr.io/otterscope/otterscope:{{ .Version }}-arm64
+  - name_template: ghcr.io/otterscope/otterscope:latest
+    image_templates:
+      - ghcr.io/otterscope/otterscope:{{ .Version }}-amd64
+      - ghcr.io/otterscope/otterscope:{{ .Version }}-arm64
+
+changelog:
+  use: github
+
+release:
+  prerelease: auto
