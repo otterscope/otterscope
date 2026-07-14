@@ -1,0 +1,17 @@
+# binaries
+/otterscope
+/dist/
+
+# data
+*.db
+*.db-wal
+*.db-shm
+
+# frontend
+web/node_modules/
+web/dist/
+
+# editor/os
+.idea/
+.vscode/
+.DS_Store
