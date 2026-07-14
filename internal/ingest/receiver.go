@@ -36,16 +36,6 @@ type Sink interface {
 	ConsumeTraces(ctx context.Context, td ptrace.Traces) error
 }
 
-// LogSink counts and logs incoming spans. Temporary stand-in until the
-// store-backed sink lands (#2).
-type LogSink struct{}
-
-// ConsumeTraces implements Sink.
-func (LogSink) ConsumeTraces(_ context.Context, td ptrace.Traces) error {
-	slog.Info("ingest: received trace batch (storage lands in #2, batch dropped)", "spans", td.SpanCount())
-	return nil
-}
-
 // NewHandler returns the OTLP/HTTP handler, routing POST /v1/traces to sink.
 func NewHandler(sink Sink) http.Handler {
 	mux := http.NewServeMux()
