@@ -38,8 +38,9 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 		(id, run_id, parent_id, kind, name, service, agent_name, status,
 		 start_ns, end_ns, error,
 		 provider, request_model, response_model, input_tokens, output_tokens,
+		 cache_read_tokens, cache_creation_tokens, reasoning_tokens,
 		 tool_name, tool_call_id)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
@@ -59,6 +60,7 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 			st.ID, st.RunID, st.ParentID, string(st.Kind), st.Name, st.Service, st.AgentName, string(st.Status),
 			st.Start.UnixNano(), st.End.UnixNano(), st.Error,
 			llm.Provider, llm.RequestModel, llm.ResponseModel, llm.InputTokens, llm.OutputTokens,
+			llm.CacheReadTokens, llm.CacheCreationTokens, llm.ReasoningTokens,
 			tool.Name, tool.CallID,
 		); err != nil {
 			return fmt.Errorf("insert step %s: %w", st.ID, err)
@@ -174,6 +176,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 		SELECT id, run_id, parent_id, kind, name, service, agent_name, status,
 		       start_ns, end_ns, error,
 		       provider, request_model, response_model, input_tokens, output_tokens,
+		       cache_read_tokens, cache_creation_tokens, reasoning_tokens,
 		       tool_name, tool_call_id
 		FROM steps WHERE run_id = ? ORDER BY start_ns`, id)
 	if err != nil {
@@ -191,6 +194,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 		if err := rows.Scan(&st.ID, &st.RunID, &st.ParentID, &kind, &st.Name, &st.Service, &st.AgentName, &stStatus,
 			&sNS, &eNS, &st.Error,
 			&llm.Provider, &llm.RequestModel, &llm.ResponseModel, &llm.InputTokens, &llm.OutputTokens,
+			&llm.CacheReadTokens, &llm.CacheCreationTokens, &llm.ReasoningTokens,
 			&tool.Name, &tool.CallID); err != nil {
 			return model.Run{}, nil, err
 		}

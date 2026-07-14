@@ -60,11 +60,15 @@ type Step struct {
 
 // LLMCall holds the model-call details of an llm step.
 type LLMCall struct {
-	Provider      string // gen_ai.system / provider name
+	Provider      string // gen_ai.provider.name (new) / gen_ai.system (old)
 	RequestModel  string
 	ResponseModel string
 	InputTokens   int64
 	OutputTokens  int64
+	// Subsets of the totals above; needed for accurate cost math (M3).
+	CacheReadTokens     int64 // subset of InputTokens served from provider cache
+	CacheCreationTokens int64 // subset of InputTokens written to provider cache
+	ReasoningTokens     int64 // subset of OutputTokens spent on reasoning
 }
 
 // ToolCall holds the tool-execution details of a tool step.
