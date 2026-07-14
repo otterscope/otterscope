@@ -1,0 +1,70 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "service.name", "value": { "stringValue": "chat-backend" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "ai", "version": "6.0.2" },
+          "spans": [
+            {
+              "traceId": "44bcfff798038103d269b633813fd100",
+              "spanId": "aa1f9b7ec3c1b401",
+              "name": "ai.generateText",
+              "kind": 1,
+              "startTimeUnixNano": "1752510000000000000",
+              "endTimeUnixNano": "1752510006000000000",
+              "attributes": [
+                { "key": "operation.name", "value": { "stringValue": "ai.generateText" } },
+                { "key": "ai.model.id", "value": { "stringValue": "claude-sonnet-5" } },
+                { "key": "ai.model.provider", "value": { "stringValue": "anthropic" } },
+                { "key": "ai.usage.promptTokens", "value": { "intValue": "950" } },
+                { "key": "ai.usage.completionTokens", "value": { "intValue": "120" } },
+                { "key": "ai.telemetry.functionId", "value": { "stringValue": "support-reply" } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "44bcfff798038103d269b633813fd100",
+              "spanId": "bb2f9b7ec3c1b402",
+              "parentSpanId": "aa1f9b7ec3c1b401",
+              "name": "ai.generateText.doGenerate",
+              "kind": 3,
+              "startTimeUnixNano": "1752510000200000000",
+              "endTimeUnixNano": "1752510004500000000",
+              "attributes": [
+                { "key": "ai.model.id", "value": { "stringValue": "claude-sonnet-5" } },
+                { "key": "ai.model.provider", "value": { "stringValue": "anthropic" } },
+                { "key": "gen_ai.system", "value": { "stringValue": "anthropic" } },
+                { "key": "gen_ai.request.model", "value": { "stringValue": "claude-sonnet-5" } },
+                { "key": "gen_ai.response.model", "value": { "stringValue": "claude-sonnet-5" } },
+                { "key": "gen_ai.usage.input_tokens", "value": { "intValue": "950" } },
+                { "key": "gen_ai.usage.output_tokens", "value": { "intValue": "120" } },
+                { "key": "gen_ai.response.finish_reasons", "value": { "arrayValue": { "values": [ { "stringValue": "tool-calls" } ] } } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "44bcfff798038103d269b633813fd100",
+              "spanId": "cc3f9b7ec3c1b403",
+              "parentSpanId": "aa1f9b7ec3c1b401",
+              "name": "ai.toolCall",
+              "kind": 1,
+              "startTimeUnixNano": "1752510004600000000",
+              "endTimeUnixNano": "1752510005200000000",
+              "attributes": [
+                { "key": "ai.toolCall.name", "value": { "stringValue": "searchOrders" } },
+                { "key": "ai.toolCall.id", "value": { "stringValue": "call_v1" } },
+                { "key": "ai.toolCall.args", "value": { "stringValue": "{\"query\": \"A-1042\"}" } }
+              ],
+              "status": { "code": 1 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
