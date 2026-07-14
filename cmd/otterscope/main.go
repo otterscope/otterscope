@@ -1,5 +1,5 @@
 // Command otterscope is a lightweight, self-hosted observability and evals
-// server for AI agents. See https://github.com/DimitrovK/otterscope.
+// server for AI agents. See https://github.com/otterscope/otterscope.
 package main
 
 import (
@@ -11,8 +11,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/DimitrovK/otterscope/internal/server"
-	"github.com/DimitrovK/otterscope/internal/store"
+	"github.com/otterscope/otterscope/internal/server"
+	"github.com/otterscope/otterscope/internal/store"
 )
 
 var version = "dev" // set via -ldflags at release time

@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DimitrovK/otterscope/internal/store"
+	"github.com/otterscope/otterscope/internal/store"
 )
 
 // Server hosts the UI/API and the OTLP receiver.

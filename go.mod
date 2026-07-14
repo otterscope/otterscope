@@ -1,4 +1,4 @@
-module github.com/DimitrovK/otterscope
+module github.com/otterscope/otterscope
 
 go 1.26
 
