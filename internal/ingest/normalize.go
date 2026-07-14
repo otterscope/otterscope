@@ -55,11 +55,16 @@ func normalizeSpan(sp ptrace.Span, service string) model.Step {
 	case "chat", "text_completion", "generate_content", "embeddings":
 		st.Kind = model.StepLLM
 		st.LLM = &model.LLMCall{
-			Provider:      stringAttr(attrs, "gen_ai.system"),
-			RequestModel:  stringAttr(attrs, "gen_ai.request.model"),
-			ResponseModel: stringAttr(attrs, "gen_ai.response.model"),
-			InputTokens:   intAttr(attrs, "gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens"),
-			OutputTokens:  intAttr(attrs, "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens"),
+			// gen_ai.provider.name is the gen_ai_latest_experimental
+			// rename of gen_ai.system; both are in the wild (ADR-0002).
+			Provider:            stringAttr(attrs, "gen_ai.provider.name", "gen_ai.system"),
+			RequestModel:        stringAttr(attrs, "gen_ai.request.model"),
+			ResponseModel:       stringAttr(attrs, "gen_ai.response.model"),
+			InputTokens:         intAttr(attrs, "gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens"),
+			OutputTokens:        intAttr(attrs, "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens"),
+			CacheReadTokens:     intAttr(attrs, "gen_ai.usage.cache_read.input_tokens"),
+			CacheCreationTokens: intAttr(attrs, "gen_ai.usage.cache_creation.input_tokens"),
+			ReasoningTokens:     intAttr(attrs, "gen_ai.usage.reasoning.output_tokens"),
 		}
 	case "execute_tool":
 		st.Kind = model.StepTool
@@ -70,8 +75,11 @@ func normalizeSpan(sp ptrace.Span, service string) model.Step {
 		if st.Tool.Name == "" {
 			st.Tool.Name = sp.Name()
 		}
-	case "invoke_agent", "create_agent":
+	case "invoke_agent", "create_agent", "invoke_workflow", "plan":
 		st.Kind = model.StepAgent
+		if st.AgentName == "" {
+			st.AgentName = stringAttr(attrs, "gen_ai.workflow.name")
+		}
 	default:
 		st.Kind = model.StepGeneric
 	}
@@ -83,9 +91,12 @@ func normalizeSpan(sp ptrace.Span, service string) model.Step {
 	return st
 }
 
-func stringAttr(attrs pcommon.Map, key string) string {
-	if v, ok := attrs.Get(key); ok {
-		return v.AsString()
+// stringAttr returns the first present key's string value.
+func stringAttr(attrs pcommon.Map, keys ...string) string {
+	for _, key := range keys {
+		if v, ok := attrs.Get(key); ok {
+			return v.AsString()
+		}
 	}
 	return ""
 }
