@@ -64,8 +64,7 @@ func (s *Server) uiHandler() http.Handler {
 }
 
 func (s *Server) otlpHandler() http.Handler {
-	// LogSink until the store-backed sink lands (#2).
-	return ingest.NewHandler(ingest.LogSink{})
+	return ingest.NewHandler(ingest.NewStoreSink(s.st))
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
