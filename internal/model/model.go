@@ -1,0 +1,74 @@
+// Package model is Otterscope's domain: agent runs and their steps. All
+// packages downstream of ingest depend on these types, never on OTel types.
+package model
+
+import "time"
+
+// Status of a run or step.
+type Status string
+
+const (
+	// StatusRunning means the run's root step hasn't been delivered yet.
+	StatusRunning Status = "running"
+	StatusOK      Status = "ok"
+	StatusError   Status = "error"
+)
+
+// StepKind classifies what a step did.
+type StepKind string
+
+const (
+	StepAgent   StepKind = "agent"   // agent invocation/creation
+	StepLLM     StepKind = "llm"     // a model call
+	StepTool    StepKind = "tool"    // a tool execution
+	StepGeneric StepKind = "generic" // any other span; never dropped
+)
+
+// Run is one end-to-end agent execution — a trace, in OTel terms. Aggregate
+// fields are derived from the run's steps at write time.
+type Run struct {
+	ID           string // trace ID, hex
+	Service      string // resource service.name
+	AgentName    string
+	Status       Status
+	Start        time.Time
+	End          time.Time
+	InputTokens  int64
+	OutputTokens int64
+	LLMCalls     int64
+	ToolCalls    int64
+	Error        string // first step error encountered
+}
+
+// Step is one operation within a run — a span, in OTel terms.
+type Step struct {
+	ID        string // span ID, hex
+	RunID     string // trace ID, hex
+	ParentID  string // parent span ID, hex; "" for the root step
+	Kind      StepKind
+	Name      string
+	Service   string
+	AgentName string
+	Status    Status
+	Start     time.Time
+	End       time.Time
+	Error     string
+
+	LLM  *LLMCall  // set when Kind == StepLLM
+	Tool *ToolCall // set when Kind == StepTool
+}
+
+// LLMCall holds the model-call details of an llm step.
+type LLMCall struct {
+	Provider      string // gen_ai.system / provider name
+	RequestModel  string
+	ResponseModel string
+	InputTokens   int64
+	OutputTokens  int64
+}
+
+// ToolCall holds the tool-execution details of a tool step.
+type ToolCall struct {
+	Name   string
+	CallID string
+}
