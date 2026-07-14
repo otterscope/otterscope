@@ -1,0 +1,97 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          { "key": "openinference.project.name", "value": { "stringValue": "triage-agents" } }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": { "name": "openinference.instrumentation.openai_agents", "version": "0.1.12" },
+          "spans": [
+            {
+              "traceId": "77aefff798038103d269b633813fc9bb",
+              "spanId": "111f9b7ec3c1b301",
+              "name": "Triage workflow",
+              "kind": 1,
+              "startTimeUnixNano": "1752500000000000000",
+              "endTimeUnixNano": "1752500012000000000",
+              "attributes": [
+                { "key": "openinference.span.kind", "value": { "stringValue": "AGENT" } },
+                { "key": "agent.name", "value": { "stringValue": "Triage Agent" } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "77aefff798038103d269b633813fc9bb",
+              "spanId": "222f9b7ec3c1b302",
+              "parentSpanId": "111f9b7ec3c1b301",
+              "name": "Response",
+              "kind": 1,
+              "startTimeUnixNano": "1752500000500000000",
+              "endTimeUnixNano": "1752500004000000000",
+              "attributes": [
+                { "key": "openinference.span.kind", "value": { "stringValue": "LLM" } },
+                { "key": "llm.system", "value": { "stringValue": "openai" } },
+                { "key": "llm.provider", "value": { "stringValue": "openai" } },
+                { "key": "llm.model_name", "value": { "stringValue": "gpt-5.2" } },
+                { "key": "llm.token_count.prompt", "value": { "intValue": "1450" } },
+                { "key": "llm.token_count.completion", "value": { "intValue": "210" } },
+                { "key": "llm.token_count.prompt_details.cache_read", "value": { "intValue": "1200" } },
+                { "key": "llm.input_messages.0.message.role", "value": { "stringValue": "user" } },
+                { "key": "llm.input_messages.0.message.content", "value": { "stringValue": "Where is my order?" } },
+                { "key": "llm.output_messages.0.message.role", "value": { "stringValue": "assistant" } },
+                { "key": "llm.output_messages.0.message.tool_calls.0.tool_call.id", "value": { "stringValue": "call_88" } },
+                { "key": "llm.output_messages.0.message.tool_calls.0.tool_call.function.name", "value": { "stringValue": "lookup_order" } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "77aefff798038103d269b633813fc9bb",
+              "spanId": "333f9b7ec3c1b303",
+              "parentSpanId": "111f9b7ec3c1b301",
+              "name": "lookup_order",
+              "kind": 1,
+              "startTimeUnixNano": "1752500004200000000",
+              "endTimeUnixNano": "1752500005100000000",
+              "attributes": [
+                { "key": "openinference.span.kind", "value": { "stringValue": "TOOL" } },
+                { "key": "tool.name", "value": { "stringValue": "lookup_order" } },
+                { "key": "tool_call.id", "value": { "stringValue": "call_88" } },
+                { "key": "input.value", "value": { "stringValue": "{\"order_id\": \"A-1042\"}" } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "77aefff798038103d269b633813fc9bb",
+              "spanId": "444f9b7ec3c1b304",
+              "parentSpanId": "111f9b7ec3c1b301",
+              "name": "handoff to Order Agent",
+              "kind": 1,
+              "startTimeUnixNano": "1752500005200000000",
+              "endTimeUnixNano": "1752500005300000000",
+              "attributes": [
+                { "key": "openinference.span.kind", "value": { "stringValue": "TOOL" } }
+              ],
+              "status": { "code": 1 }
+            },
+            {
+              "traceId": "77aefff798038103d269b633813fc9bb",
+              "spanId": "555f9b7ec3c1b305",
+              "parentSpanId": "111f9b7ec3c1b301",
+              "name": "guardrail check",
+              "kind": 1,
+              "startTimeUnixNano": "1752500005400000000",
+              "endTimeUnixNano": "1752500005600000000",
+              "attributes": [
+                { "key": "openinference.span.kind", "value": { "stringValue": "GUARDRAIL" } }
+              ],
+              "status": { "code": 1 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
