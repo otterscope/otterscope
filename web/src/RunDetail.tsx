@@ -96,6 +96,19 @@ export default function RunDetail({
         )}
       </div>
       {run.error && <p className="run-error">{run.error}</p>}
+      {(detail.assertionResults ?? []).length > 0 && (
+        <div className="asserts">
+          {detail.assertionResults!.map((a) => (
+            <span
+              key={a.assertionId}
+              className={`assert ${a.pass ? "pass" : "fail"}`}
+              title={a.detail || a.type}
+            >
+              {a.pass ? "✓" : "✗"} {a.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="timeline">
         {steps.map((s) => (

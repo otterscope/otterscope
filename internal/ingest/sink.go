@@ -39,7 +39,19 @@ func (s *StoreSink) ConsumeTraces(ctx context.Context, project string, td ptrace
 	for i := range steps {
 		steps[i].Project = project
 	}
-	return s.st.IngestBatch(ctx, project, raw, steps)
+	if err := s.st.IngestBatch(ctx, project, raw, steps); err != nil {
+		return err
+	}
+
+	seen := map[string]bool{}
+	var runIDs []string
+	for _, st := range steps {
+		if !seen[st.RunID] {
+			seen[st.RunID] = true
+			runIDs = append(runIDs, st.RunID)
+		}
+	}
+	return EvaluateRuns(ctx, s.st, runIDs)
 }
 
 // priceSteps stamps CostUSD on llm steps with a known model. Unknown models

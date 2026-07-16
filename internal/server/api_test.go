@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -181,5 +182,49 @@ func TestGetRunNotFoundAPI(t *testing.T) {
 	srv.uiHandler().ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestAssertionsAPI(t *testing.T) {
+	srv, st := testServer(t)
+	seedRun(t, st, "r1", 1000)
+
+	// Create two assertions via the API.
+	mkAssert := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/assertions", strings.NewReader(body))
+		w := httptest.NewRecorder()
+		srv.uiHandler().ServeHTTP(w, req)
+		return w
+	}
+	if w := mkAssert(`{"name":"fast","type":"max_latency_ms","config":"20000"}`); w.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", w.Code, w.Body.String())
+	}
+	if w := mkAssert(`{"name":"bad","type":"regex","config":"("}`); w.Code != http.StatusBadRequest {
+		t.Fatalf("invalid regex accepted: %d", w.Code)
+	}
+
+	// On-demand evaluation backfills the existing run.
+	req := httptest.NewRequest(http.MethodPost, "/api/assertions/evaluate?project=default", nil)
+	w := httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("evaluate: %d %s", w.Code, w.Body.String())
+	}
+
+	// Results appear on the run detail.
+	req = httptest.NewRequest(http.MethodGet, "/api/runs/r1", nil)
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	var resp struct {
+		AssertionResults []struct {
+			Name string `json:"name"`
+			Pass bool   `json:"pass"`
+		} `json:"assertionResults"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad JSON: %v", err)
+	}
+	if len(resp.AssertionResults) != 1 || resp.AssertionResults[0].Name != "fast" || !resp.AssertionResults[0].Pass {
+		t.Fatalf("results: %+v", resp.AssertionResults)
 	}
 }
