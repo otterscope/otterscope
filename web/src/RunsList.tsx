@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fmtCost, fmtDuration, fmtStart, fmtTokens, type Run } from "./api";
+import Filters, { filtersFromURL, filtersToQuery, type FilterState } from "./Filters";
 
 const POLL_MS = 2000;
 
@@ -9,11 +10,12 @@ export default function RunsList({
   navigate: (path: string) => void;
 }) {
   const [runs, setRuns] = useState<Run[] | null>(null);
+  const [filters, setFilters] = useState<FilterState>(filtersFromURL);
 
   useEffect(() => {
     let stop = false;
     const load = () =>
-      fetch("/api/runs?limit=100")
+      fetch(`/api/runs?${filtersToQuery(filters)}`)
         .then((r) => r.json())
         .then((data) => !stop && setRuns(data.runs))
         .catch(() => {});
@@ -23,23 +25,31 @@ export default function RunsList({
       stop = true;
       clearInterval(timer);
     };
-  }, []);
+  }, [filters]);
 
-  if (runs === null) return <p className="hint">loading…</p>;
-  if (runs.length === 0)
-    return (
-      <div className="empty">
-        <p>No runs yet.</p>
-        <p className="hint">
-          Point your agent&apos;s OpenTelemetry exporter here:
-          <br />
-          <code>export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318</code>
-        </p>
-      </div>
-    );
+  const hasFilters =
+    filters.status || filters.model || filters.service || filters.range;
 
   return (
-    <table className="runs">
+    <>
+      <Filters onChange={setFilters} />
+      {runs === null && <p className="hint">loading…</p>}
+      {runs !== null && runs.length === 0 && (
+        <div className="empty">
+          <p>{hasFilters ? "No runs match these filters." : "No runs yet."}</p>
+          {!hasFilters && (
+            <p className="hint">
+              Point your agent&apos;s OpenTelemetry exporter here:
+              <br />
+              <code>
+                export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+              </code>
+            </p>
+          )}
+        </div>
+      )}
+      {runs !== null && runs.length > 0 && (
+      <table className="runs">
       <thead>
         <tr>
           <th>status</th>
@@ -80,6 +90,8 @@ export default function RunsList({
           </tr>
         ))}
       </tbody>
-    </table>
+      </table>
+      )}
+    </>
   );
 }
