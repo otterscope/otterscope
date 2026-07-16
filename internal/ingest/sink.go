@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
+	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/model"
 	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/store"
@@ -23,11 +24,13 @@ import (
 type StoreSink struct {
 	st     *store.Store
 	prices *pricing.Table
+	judge  evals.Endpoint
 }
 
-// NewStoreSink returns a Sink writing to st, pricing calls via prices.
-func NewStoreSink(st *store.Store, prices *pricing.Table) *StoreSink {
-	return &StoreSink{st: st, prices: prices}
+// NewStoreSink returns a Sink writing to st, pricing calls via prices and
+// judging with the server-configured endpoint.
+func NewStoreSink(st *store.Store, prices *pricing.Table, judge evals.Endpoint) *StoreSink {
+	return &StoreSink{st: st, prices: prices, judge: judge}
 }
 
 // ConsumeTraces implements Sink.
@@ -58,7 +61,7 @@ func (s *StoreSink) ConsumeTraces(ctx context.Context, project string, td ptrace
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		if err := EvaluateRuns(ctx, s.st, runIDs, false); err != nil {
+		if err := EvaluateRuns(ctx, s.st, s.judge, runIDs, false); err != nil {
 			slog.Error("assertion evaluation failed", "err", err)
 		}
 	}()

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/model"
 	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/store"
@@ -22,7 +23,7 @@ func testServer(t *testing.T) (*Server, *store.Store) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
-	return New(st, pricing.Default(), "test"), st
+	return New(st, pricing.Default(), evals.Endpoint{}, "test"), st
 }
 
 func seedRun(t *testing.T, st *store.Store, id string, startSec int64) {

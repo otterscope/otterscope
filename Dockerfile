@@ -10,4 +10,4 @@ COPY otterscope /otterscope
 VOLUME /data
 EXPOSE 8317 4318
 ENTRYPOINT ["/otterscope"]
-CMD ["serve", "-db", "/data/otterscope.db"]
+CMD ["serve", "-db", "/data/otterscope.db", "-listen", ":8317", "-otlp", ":4318"]

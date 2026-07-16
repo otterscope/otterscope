@@ -15,7 +15,7 @@ import (
 // assertions. Deterministic assertions always run; llm_judge assertions run
 // subject to their sampleRate, or unconditionally when judgeAll is set
 // (on-demand backfill). Safe to re-run: results upsert by (run, assertion).
-func EvaluateRuns(ctx context.Context, st *store.Store, runIDs []string, judgeAll bool) error {
+func EvaluateRuns(ctx context.Context, st *store.Store, judge evals.Endpoint, runIDs []string, judgeAll bool) error {
 	cache := map[string][]evals.Assertion{} // project → enabled assertions
 	for _, id := range runIDs {
 		run, steps, err := st.GetRun(ctx, id)
@@ -46,7 +46,7 @@ func EvaluateRuns(ctx context.Context, st *store.Store, runIDs []string, judgeAl
 		for _, a := range asserts {
 			if a.Type == "llm_judge" {
 				if judgeAll || sampled(a) {
-					results = append(results, evals.Judge(ctx, a, run, steps))
+					results = append(results, evals.Judge(ctx, judge, a, run, steps))
 				}
 				continue
 			}
@@ -75,7 +75,7 @@ func sampled(a evals.Assertion) bool {
 
 // EvaluateProject backfills assertion results over every completed run in a
 // project (on-demand evaluation).
-func EvaluateProject(ctx context.Context, st *store.Store, project string) (int, error) {
+func EvaluateProject(ctx context.Context, st *store.Store, judge evals.Endpoint, project string) (int, error) {
 	const page = 200
 	total := 0
 	for offset := 0; ; offset += page {
@@ -92,7 +92,7 @@ func EvaluateProject(ctx context.Context, st *store.Store, project string) (int,
 				ids = append(ids, r.ID)
 			}
 		}
-		if err := EvaluateRuns(ctx, st, ids, true); err != nil {
+		if err := EvaluateRuns(ctx, st, judge, ids, true); err != nil {
 			return total, err
 		}
 		total += len(ids)

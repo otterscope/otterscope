@@ -203,7 +203,7 @@ func (s *Server) handleEvaluate(w http.ResponseWriter, r *http.Request) {
 	if project == "" {
 		project = "default"
 	}
-	n, err := ingest.EvaluateProject(r.Context(), s.st, project)
+	n, err := ingest.EvaluateProject(r.Context(), s.st, s.judge, project)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
