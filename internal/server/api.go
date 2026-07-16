@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/otterscope/otterscope/internal/model"
 	"github.com/otterscope/otterscope/internal/store"
@@ -137,7 +138,24 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 	limit := queryInt(r, "limit", 50, 1, 500)
 	offset := queryInt(r, "offset", 0, 0, 1<<30)
 
-	runs, err := s.st.ListRuns(r.Context(), limit, offset)
+	q := r.URL.Query()
+	f := store.Filter{
+		Status:  q.Get("status"),
+		Service: q.Get("service"),
+		Model:   q.Get("model"),
+	}
+	if v := q.Get("since"); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			f.Since = t
+		}
+	}
+	if v := q.Get("until"); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			f.Until = t
+		}
+	}
+
+	runs, err := s.st.ListRuns(r.Context(), f, limit, offset)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
 		return

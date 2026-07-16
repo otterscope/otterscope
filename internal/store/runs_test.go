@@ -167,7 +167,7 @@ func TestListRunsNewestFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runs, err := st.ListRuns(ctx, 10, 0)
+	runs, err := st.ListRuns(ctx, Filter{}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListRuns: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestListRunsNewestFirst(t *testing.T) {
 		t.Fatalf("wrong order: %+v", runs)
 	}
 
-	page, err := st.ListRuns(ctx, 1, 1)
+	page, err := st.ListRuns(ctx, Filter{}, 1, 1)
 	if err != nil {
 		t.Fatalf("ListRuns paged: %v", err)
 	}
@@ -188,5 +188,43 @@ func TestGetRunNotFound(t *testing.T) {
 	st := openTest(t)
 	if _, _, err := st.GetRun(context.Background(), "nope"); err != ErrNotFound {
 		t.Fatalf("err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestListRunsFilters(t *testing.T) {
+	st := openTest(t)
+	ctx := context.Background()
+
+	okRun := sampleRun("r-ok", 1000)
+	if err := st.UpsertSteps(ctx, okRun); err != nil {
+		t.Fatal(err)
+	}
+	errRun := sampleRun("r-err", 2000)
+	errRun[2].Status = model.StatusError
+	errRun[2].Error = "boom"
+	if err := st.UpsertSteps(ctx, errRun); err != nil {
+		t.Fatal(err)
+	}
+
+	if runs, _ := st.ListRuns(ctx, Filter{Status: "error"}, 10, 0); len(runs) != 1 || runs[0].ID != "r-err" {
+		t.Errorf("status filter: %+v", runs)
+	}
+	if runs, _ := st.ListRuns(ctx, Filter{Service: "support-agent"}, 10, 0); len(runs) != 2 {
+		t.Errorf("service filter: %+v", runs)
+	}
+	if runs, _ := st.ListRuns(ctx, Filter{Model: "sonnet"}, 10, 0); len(runs) != 2 {
+		t.Errorf("model substring filter: %+v", runs)
+	}
+	if runs, _ := st.ListRuns(ctx, Filter{Model: "son%net"}, 10, 0); len(runs) != 0 {
+		t.Errorf("LIKE wildcards must be escaped: %+v", runs)
+	}
+	if runs, _ := st.ListRuns(ctx, Filter{Since: ts(1500)}, 10, 0); len(runs) != 1 || runs[0].ID != "r-err" {
+		t.Errorf("since filter: %+v", runs)
+	}
+	if runs, _ := st.ListRuns(ctx, Filter{Until: ts(1500)}, 10, 0); len(runs) != 1 || runs[0].ID != "r-ok" {
+		t.Errorf("until filter: %+v", runs)
+	}
+	if runs, _ := st.ListRuns(ctx, Filter{Status: "ok", Model: "claude", Since: ts(500)}, 10, 0); len(runs) != 1 || runs[0].ID != "r-ok" {
+		t.Errorf("combined filters: %+v", runs)
 	}
 }

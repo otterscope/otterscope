@@ -271,3 +271,25 @@ a {
 .msg.out pre {
   border-left: 3px solid var(--accent);
 }
+
+.filters {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
+  flex-wrap: wrap;
+}
+
+.filters select,
+.filters input {
+  background: #10161d;
+  color: var(--fg);
+  border: 1px solid #1f2733;
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.filters input:focus,
+.filters select:focus {
+  outline: 1px solid var(--accent);
+}

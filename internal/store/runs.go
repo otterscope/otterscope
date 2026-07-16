@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/otterscope/otterscope/internal/model"
@@ -144,14 +145,47 @@ func floatPtr(f sql.NullFloat64) *float64 {
 	return &f.Float64
 }
 
+// Filter narrows ListRuns. Zero values mean "no constraint".
+type Filter struct {
+	Status  string    // exact match: running | ok | error
+	Service string    // prefix match (index-friendly)
+	Model   string    // substring match against the run's models list
+	Since   time.Time // start >= Since
+	Until   time.Time // start <= Until
+}
+
 // ListRuns returns runs newest-first. offset-based paging is fine at target
 // scale; revisit with keyset paging if it ever shows up in profiles.
-func (s *Store) ListRuns(ctx context.Context, limit, offset int) ([]model.Run, error) {
+func (s *Store) ListRuns(ctx context.Context, f Filter, limit, offset int) ([]model.Run, error) {
+	where := " WHERE 1=1"
+	var args []any
+	if f.Status != "" {
+		where += " AND status = ?"
+		args = append(args, f.Status)
+	}
+	if f.Service != "" {
+		where += " AND service LIKE ? ESCAPE '\\'"
+		args = append(args, escapeLike(f.Service)+"%")
+	}
+	if f.Model != "" {
+		where += " AND models LIKE ? ESCAPE '\\'"
+		args = append(args, "%"+escapeLike(f.Model)+"%")
+	}
+	if !f.Since.IsZero() {
+		where += " AND start_ns >= ?"
+		args = append(args, f.Since.UnixNano())
+	}
+	if !f.Until.IsZero() {
+		where += " AND start_ns <= ?"
+		args = append(args, f.Until.UnixNano())
+	}
+	args = append(args, limit, offset)
+
 	rows, err := s.reader.QueryContext(ctx, `
 		SELECT id, service, agent_name, status, start_ns, end_ns,
 		       input_tokens, output_tokens, llm_calls, tool_calls, models,
 		       cost_usd, cost_partial, error
-		FROM runs ORDER BY start_ns DESC LIMIT ? OFFSET ?`, limit, offset)
+		FROM runs`+where+` ORDER BY start_ns DESC LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -175,6 +209,12 @@ func (s *Store) ListRuns(ctx context.Context, limit, offset int) ([]model.Run, e
 		runs = append(runs, r)
 	}
 	return runs, rows.Err()
+}
+
+// escapeLike neutralizes LIKE wildcards in user input.
+func escapeLike(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
 }
 
 // ErrNotFound is returned by GetRun for unknown run IDs.
