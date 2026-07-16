@@ -1,0 +1,16 @@
+# Minimal self-hosted deployment. UI on :8317, OTLP ingest on :4318,
+# data in a named volume.
+services:
+  otterscope:
+    image: ghcr.io/otterscope/otterscope:latest
+    restart: unless-stopped
+    ports:
+      - "8317:8317"
+      - "4318:4318"
+    volumes:
+      - otterscope-data:/data
+    # Optional flags, e.g. retention or pricing overrides:
+    # command: ["serve", "-db", "/data/otterscope.db", "-retention", "2160h"]
+
+volumes:
+  otterscope-data:
