@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import RunsList from "./RunsList";
 import RunDetail from "./RunDetail";
+import Compare from "./Compare";
 
 type Health = { status: string; version: string };
 
@@ -42,10 +43,23 @@ export default function App() {
           🦦 Otterscope
         </h1>
         <span className="tagline">{health ? `v${health.version}` : "…"}</span>
+        <nav>
+          <a
+            href="/compare"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/compare");
+            }}
+          >
+            compare
+          </a>
+        </nav>
       </header>
       <main>
         {runMatch ? (
           <RunDetail id={runMatch[1]} navigate={navigate} />
+        ) : path === "/compare" ? (
+          <Compare />
         ) : (
           <RunsList navigate={navigate} />
         )}

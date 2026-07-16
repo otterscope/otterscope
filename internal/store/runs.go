@@ -160,32 +160,7 @@ type Filter struct {
 // ListRuns returns runs newest-first. offset-based paging is fine at target
 // scale; revisit with keyset paging if it ever shows up in profiles.
 func (s *Store) ListRuns(ctx context.Context, f Filter, limit, offset int) ([]model.Run, error) {
-	where := " WHERE 1=1"
-	var args []any
-	if f.Project != "" {
-		where += " AND project = ?"
-		args = append(args, f.Project)
-	}
-	if f.Status != "" {
-		where += " AND status = ?"
-		args = append(args, f.Status)
-	}
-	if f.Service != "" {
-		where += " AND service LIKE ? ESCAPE '\\'"
-		args = append(args, escapeLike(f.Service)+"%")
-	}
-	if f.Model != "" {
-		where += " AND models LIKE ? ESCAPE '\\'"
-		args = append(args, "%"+escapeLike(f.Model)+"%")
-	}
-	if !f.Since.IsZero() {
-		where += " AND start_ns >= ?"
-		args = append(args, f.Since.UnixNano())
-	}
-	if !f.Until.IsZero() {
-		where += " AND start_ns <= ?"
-		args = append(args, f.Until.UnixNano())
-	}
+	where, args := filterWhere(f)
 	args = append(args, limit, offset)
 
 	rows, err := s.reader.QueryContext(ctx, `

@@ -316,3 +316,28 @@ a {
   background: #3a1518;
   color: #ff8e8e;
 }
+
+nav {
+  margin-left: auto;
+}
+
+.compare-title {
+  margin: 1.2rem 0 0;
+  font-size: 1.1rem;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.compare-grid h3 {
+  margin: 1rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.compare-table td:first-child {
+  color: var(--muted);
+}
