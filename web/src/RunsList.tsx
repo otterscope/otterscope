@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { fmtCost, fmtDuration, fmtStart, fmtTokens, type Run } from "./api";
 import Filters, { filtersFromURL, filtersToQuery, type FilterState } from "./Filters";
-
-const POLL_MS = 2000;
+import { useLiveTick } from "./live";
 
 export default function RunsList({
   navigate,
@@ -11,21 +10,18 @@ export default function RunsList({
 }) {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [filters, setFilters] = useState<FilterState>(filtersFromURL);
+  const tick = useLiveTick();
 
   useEffect(() => {
     let stop = false;
-    const load = () =>
-      fetch(`/api/runs?${filtersToQuery(filters)}`)
-        .then((r) => r.json())
-        .then((data) => !stop && setRuns(data.runs))
-        .catch(() => {});
-    load();
-    const timer = setInterval(load, POLL_MS);
+    fetch(`/api/runs?${filtersToQuery(filters)}`)
+      .then((r) => r.json())
+      .then((data) => !stop && setRuns(data.runs))
+      .catch(() => {});
     return () => {
       stop = true;
-      clearInterval(timer);
     };
-  }, [filters]);
+  }, [filters, tick]);
 
   const hasFilters =
     filters.project ||

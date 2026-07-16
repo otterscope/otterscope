@@ -7,8 +7,7 @@ import {
   type RunDetail as Detail,
   type Step,
 } from "./api";
-
-const POLL_MS = 2000;
+import { useLiveTick } from "./live";
 
 // depth by walking parent links; unknown parents count as roots so partial
 // traces still render.
@@ -32,27 +31,24 @@ export default function RunDetail({
   const [detail, setDetail] = useState<Detail | null>(null);
   const [missing, setMissing] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const tick = useLiveTick();
 
   useEffect(() => {
     let stop = false;
-    const load = () =>
-      fetch(`/api/runs/${id}`)
-        .then((r) => {
-          if (r.status === 404) {
-            setMissing(true);
-            return null;
-          }
-          return r.json();
-        })
-        .then((data) => data && !stop && setDetail(data))
-        .catch(() => {});
-    load();
-    const timer = setInterval(load, POLL_MS);
+    fetch(`/api/runs/${id}`)
+      .then((r) => {
+        if (r.status === 404) {
+          setMissing(true);
+          return null;
+        }
+        return r.json();
+      })
+      .then((data) => data && !stop && setDetail(data))
+      .catch(() => {});
     return () => {
       stop = true;
-      clearInterval(timer);
     };
-  }, [id]);
+  }, [id, tick]);
 
   const byId = useMemo(
     () => new Map((detail?.steps ?? []).map((s) => [s.id, s])),
