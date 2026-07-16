@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  fmtCost,
   fmtDuration,
   fmtStart,
   fmtTokens,
@@ -90,6 +91,9 @@ export default function RunDetail({
         <span className="stat">
           {run.llmCalls} llm · {run.toolCalls} tools
         </span>
+        {run.costUsd !== undefined && (
+          <span className="stat">{fmtCost(run.costUsd, run.costPartial)}</span>
+        )}
       </div>
       {run.error && <p className="run-error">{run.error}</p>}
 
@@ -138,6 +142,8 @@ export default function RunDetail({
                 / {fmtTokens(sel.llm.outputTokens)} out
                 {sel.llm.reasoningTokens > 0 &&
                   ` (${fmtTokens(sel.llm.reasoningTokens)} reasoning)`}
+                {sel.llm.costUsd !== undefined &&
+                  ` · ${fmtCost(sel.llm.costUsd)}`}
               </p>
               {(sel.llm.inputMessages ?? []).map((m, i) => (
                 <div key={`in-${i}`} className="msg">

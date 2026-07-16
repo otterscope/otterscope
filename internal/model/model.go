@@ -37,8 +37,10 @@ type Run struct {
 	OutputTokens int64
 	LLMCalls     int64
 	ToolCalls    int64
-	Models       string // distinct request models, comma-joined
-	Error        string // first step error encountered
+	Models       string   // distinct request models, comma-joined
+	CostUSD      *float64 // sum of known step costs; nil when none known
+	CostPartial  bool     // true when some llm steps had no known price
+	Error        string   // first step error encountered
 }
 
 // Step is one operation within a run — a span, in OTel terms.
@@ -80,6 +82,8 @@ type LLMCall struct {
 	// Conversation content when the emitter opted into recording it.
 	InputMessages  []Message
 	OutputMessages []Message
+	// CostUSD is set at ingest from the pricing table; nil = unknown model.
+	CostUSD *float64
 }
 
 // ToolCall holds the tool-execution details of a tool step.

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/otterscope/otterscope/internal/ingest"
+	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/store"
 	"github.com/otterscope/otterscope/web"
 )
@@ -21,12 +22,13 @@ import (
 // Server hosts the UI/API and the OTLP receiver.
 type Server struct {
 	st      *store.Store
+	prices  *pricing.Table
 	version string
 }
 
-// New creates a Server backed by st.
-func New(st *store.Store, version string) *Server {
-	return &Server{st: st, version: version}
+// New creates a Server backed by st, pricing LLM calls via prices.
+func New(st *store.Store, prices *pricing.Table, version string) *Server {
+	return &Server{st: st, prices: prices, version: version}
 }
 
 // Run serves until ctx is canceled, then shuts both listeners down.
@@ -90,7 +92,7 @@ func uiRoot() http.Handler {
 }
 
 func (s *Server) otlpHandler() http.Handler {
-	return ingest.NewHandler(ingest.NewStoreSink(s.st))
+	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices))
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

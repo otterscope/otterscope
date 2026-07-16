@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/server"
 	"github.com/otterscope/otterscope/internal/store"
 )
@@ -49,8 +50,21 @@ func serve(args []string) error {
 	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
 	uiAddr := fs.String("listen", ":8317", "address for the web UI and API")
 	otlpAddr := fs.String("otlp", ":4318", "address for the OTLP/HTTP receiver")
+	pricingPath := fs.String("pricing", "", "JSON file of pricing overrides, merged over built-in rates")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	prices := pricing.Default()
+	if *pricingPath != "" {
+		data, err := os.ReadFile(*pricingPath)
+		if err != nil {
+			return fmt.Errorf("read pricing overrides: %w", err)
+		}
+		if err := prices.MergeJSON(data); err != nil {
+			return err
+		}
+		slog.Info("pricing overrides loaded", "file", *pricingPath)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -63,6 +77,6 @@ func serve(args []string) error {
 	defer st.Close()
 	slog.Info("store ready", "db", *dbPath)
 
-	srv := server.New(st, version)
+	srv := server.New(st, prices, version)
 	return srv.Run(ctx, *uiAddr, *otlpAddr)
 }
