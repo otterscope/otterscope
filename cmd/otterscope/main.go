@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/ingest"
 	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/sample"
@@ -72,10 +73,11 @@ commands:
 func serve(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
-	uiAddr := fs.String("listen", ":8317", "address for the web UI and API")
-	otlpAddr := fs.String("otlp", ":4318", "address for the OTLP/HTTP receiver")
+	uiAddr := fs.String("listen", "127.0.0.1:8317", "address for the web UI and API (loopback by default; use :8317 to expose)")
+	otlpAddr := fs.String("otlp", "127.0.0.1:4318", "address for the OTLP/HTTP receiver (loopback by default; use :4318 to expose)")
 	pricingPath := fs.String("pricing", "", "JSON file of pricing overrides, merged over built-in rates")
 	retention := fs.Duration("retention", 0, "delete runs older than this (e.g. 720h = 30 days); 0 keeps everything")
+	judgeURL := fs.String("judge-url", "https://api.openai.com/v1", "OpenAI-compatible endpoint for llm_judge assertions")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -107,7 +109,13 @@ func serve(args []string) error {
 		slog.Info("retention sweep enabled", "keep", *retention)
 	}
 
-	srv := server.New(st, prices, version)
+	judgeKey := os.Getenv("OTTERSCOPE_JUDGE_KEY")
+	if judgeKey == "" {
+		judgeKey = os.Getenv("OPENAI_API_KEY")
+	}
+	judge := evals.Endpoint{BaseURL: *judgeURL, Key: judgeKey}
+
+	srv := server.New(st, prices, judge, version)
 	return srv.Run(ctx, *uiAddr, *otlpAddr)
 }
 

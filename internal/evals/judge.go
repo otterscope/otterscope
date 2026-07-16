@@ -7,27 +7,39 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/otterscope/otterscope/internal/model"
 )
 
-// JudgeConfig is the parsed config of an llm_judge assertion. The API key
-// is resolved from the environment at call time and never persisted.
+// JudgeConfig is the parsed config of an llm_judge assertion. Endpoint and
+// API key are deliberately NOT part of it: assertions are creatable via the
+// unauthenticated single-user API, so letting them name an env var or URL
+// would allow secret exfiltration and SSRF (audit finding #48). The endpoint
+// is server configuration — see Endpoint.
 type JudgeConfig struct {
 	Prompt     string  `json:"prompt"`
 	Model      string  `json:"model"`
-	BaseURL    string  `json:"baseUrl,omitempty"`    // default https://api.openai.com/v1
-	APIKeyEnv  string  `json:"apiKeyEnv,omitempty"`  // default OPENAI_API_KEY
 	SampleRate float64 `json:"sampleRate,omitempty"` // 0..1; 0 means 1.0 (all)
+}
+
+// Endpoint is the server-configured judge target: base URL from the
+// -judge-url flag, key resolved once at startup from OTTERSCOPE_JUDGE_KEY
+// (fallback OPENAI_API_KEY).
+type Endpoint struct {
+	BaseURL string
+	Key     string
 }
 
 func parseJudgeConfig(raw string) (JudgeConfig, error) {
 	var c JudgeConfig
-	if err := json.Unmarshal([]byte(raw), &c); err != nil {
-		return c, fmt.Errorf("llm_judge config must be JSON: %w", err)
+	dec := json.NewDecoder(strings.NewReader(raw))
+	// Unknown fields (e.g. legacy baseUrl/apiKeyEnv) must fail loudly, not
+	// be silently ignored.
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&c); err != nil {
+		return c, fmt.Errorf("llm_judge config invalid (only prompt, model, sampleRate are allowed): %w", err)
 	}
 	if c.Prompt == "" || c.Model == "" {
 		return c, fmt.Errorf("llm_judge config needs prompt and model")
@@ -35,30 +47,24 @@ func parseJudgeConfig(raw string) (JudgeConfig, error) {
 	if c.SampleRate < 0 || c.SampleRate > 1 {
 		return c, fmt.Errorf("sampleRate must be within 0..1")
 	}
-	if c.BaseURL == "" {
-		c.BaseURL = "https://api.openai.com/v1"
-	}
-	if c.APIKeyEnv == "" {
-		c.APIKeyEnv = "OPENAI_API_KEY"
-	}
 	return c, nil
 }
 
 // judgeHTTP is swapped in tests.
 var judgeHTTP = &http.Client{Timeout: 60 * time.Second}
 
-// Judge scores a run with an LLM via an OpenAI-compatible endpoint. The
-// verdict must start with PASS or FAIL; the rest becomes the detail.
-func Judge(ctx context.Context, a Assertion, run model.Run, steps []model.Step) Result {
+// Judge scores a run with an LLM via the server-configured OpenAI-compatible
+// endpoint. The verdict must start with PASS or FAIL; the rest becomes the
+// detail.
+func Judge(ctx context.Context, ep Endpoint, a Assertion, run model.Run, steps []model.Step) Result {
 	res := Result{AssertionID: a.ID, Name: a.Name, Type: a.Type}
 	cfg, err := parseJudgeConfig(a.Config)
 	if err != nil {
 		res.Detail = err.Error()
 		return res
 	}
-	key := os.Getenv(cfg.APIKeyEnv)
-	if key == "" {
-		res.Detail = fmt.Sprintf("judge skipped: env %s is not set", cfg.APIKeyEnv)
+	if ep.Key == "" {
+		res.Detail = "judge skipped: OTTERSCOPE_JUDGE_KEY (or OPENAI_API_KEY) is not set"
 		return res
 	}
 
@@ -75,13 +81,13 @@ func Judge(ctx context.Context, a Assertion, run model.Run, steps []model.Step) 
 	})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		strings.TrimSuffix(cfg.BaseURL, "/")+"/chat/completions", bytes.NewReader(body))
+		strings.TrimSuffix(ep.BaseURL, "/")+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		res.Detail = err.Error()
 		return res
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Authorization", "Bearer "+ep.Key)
 
 	resp, err := judgeHTTP.Do(req)
 	if err != nil {

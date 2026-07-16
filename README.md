@@ -15,7 +15,11 @@ One static binary. One SQLite file. No ClickHouse, no Redis, no S3, no seat fees
 ./otterscope serve
 ```
 
-or with Docker:
+By default the UI and ingest bind to **loopback** (`127.0.0.1`) — safe on a
+shared machine. To expose them on your network, pass `-listen :8317 -otlp :4318`.
+
+or with Docker (the container binds all interfaces inside its namespace; you
+control exposure with `-p`):
 
 ```sh
 docker run -p 8317:8317 -p 4318:4318 -v otterscope:/data ghcr.io/otterscope/otterscope
@@ -38,7 +42,7 @@ Want to poke around before wiring an agent? `./otterscope sample` seeds realisti
 
   ![Run detail — step timeline, assertion chips, and message inspector](docs/screenshots/run-detail.png)
 - **Cost tracking** — maintained pricing table for major providers (override or extend with `serve -pricing yours.json`); unknown models show tokens, never fabricated costs.
-- **Evals fused into the trace store** — assertions (`contains`, `regex`, `is_json`, latency/cost thresholds) and **LLM-as-judge** (any OpenAI-compatible endpoint, your key stays in your env) scored onto real runs at ingest or backfilled on demand. No second product.
+- **Evals fused into the trace store** — assertions (`contains`, `regex`, `is_json`, latency/cost thresholds) and **LLM-as-judge** scored onto real runs at ingest or backfilled on demand. The judge endpoint and key are server config (`-judge-url`, `OTTERSCOPE_JUDGE_KEY`), never per-assertion — so assertions can't name secrets to read. No second product.
 - **Compare view** — error rate, p50/p95 latency, cost, and assertion pass rates side-by-side across any two filters: this week vs last, model A vs model B. *"Did my prompt change make things worse?"* is one URL.
 
   ![Compare — two models side by side: error rate, latency percentiles, cost, assertion pass rates](docs/screenshots/compare.png)

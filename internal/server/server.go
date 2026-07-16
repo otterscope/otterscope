@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/ingest"
 	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/store"
@@ -23,12 +24,14 @@ import (
 type Server struct {
 	st      *store.Store
 	prices  *pricing.Table
+	judge   evals.Endpoint
 	version string
 }
 
-// New creates a Server backed by st, pricing LLM calls via prices.
-func New(st *store.Store, prices *pricing.Table, version string) *Server {
-	return &Server{st: st, prices: prices, version: version}
+// New creates a Server backed by st, pricing LLM calls via prices and
+// judging with the server-configured endpoint.
+func New(st *store.Store, prices *pricing.Table, judge evals.Endpoint, version string) *Server {
+	return &Server{st: st, prices: prices, judge: judge, version: version}
 }
 
 // Run serves until ctx is canceled, then shuts both listeners down.
@@ -97,7 +100,7 @@ func uiRoot() http.Handler {
 }
 
 func (s *Server) otlpHandler() http.Handler {
-	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices), s.st.ProjectForKey)
+	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices, s.judge), s.st.ProjectForKey)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
