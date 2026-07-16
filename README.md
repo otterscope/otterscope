@@ -6,6 +6,8 @@ One static binary. One SQLite file. No ClickHouse, no Redis, no S3, no seat fees
 
 > Think *Plausible Analytics, but for AI agents*.
 
+![Runs list — live-tailing agent runs with status, duration, models, tokens, and cost](docs/screenshots/runs-list.png)
+
 ## Quick start
 
 ```sh
@@ -33,9 +35,13 @@ Want to poke around before wiring an agent? `./otterscope sample` seeds realisti
 
 - **Runs, not span soup** — every trace becomes an agent run: steps, tool loops, per-run tokens and cost, error surfacing, live-tailing list with filters (status, model, service, project, time — all URL-shareable).
 - **Run inspector** — step timeline with proportional duration bars; click any LLM call to read the actual messages in/out, token breakdowns (cache reads, reasoning), and cost; tool calls show arguments and results.
+
+  ![Run detail — step timeline, assertion chips, and message inspector](docs/screenshots/run-detail.png)
 - **Cost tracking** — maintained pricing table for major providers (override or extend with `serve -pricing yours.json`); unknown models show tokens, never fabricated costs.
 - **Evals fused into the trace store** — assertions (`contains`, `regex`, `is_json`, latency/cost thresholds) and **LLM-as-judge** (any OpenAI-compatible endpoint, your key stays in your env) scored onto real runs at ingest or backfilled on demand. No second product.
 - **Compare view** — error rate, p50/p95 latency, cost, and assertion pass rates side-by-side across any two filters: this week vs last, model A vs model B. *"Did my prompt change make things worse?"* is one URL.
+
+  ![Compare — two models side by side: error rate, latency percentiles, cost, assertion pass rates](docs/screenshots/compare.png)
 - **Drop-in OTel compatibility** — normalizes the OTel GenAI conventions (both current dialects), OpenInference (OpenAI Agents SDK, CrewAI, LangChain), and the Vercel AI SDK. Raw payloads are retained, so old data benefits from future normalizer improvements.
 - **Projects + ingest keys** for isolating multiple agents; optional retention sweep (`-retention 720h`) if you *want* to delete data.
 
