@@ -18,7 +18,7 @@ type Assertion struct {
 	Project string `json:"project"`
 	Name    string `json:"name"`
 	// Type: contains | not_contains | regex | is_json | max_latency_ms |
-	// max_cost_usd
+	// max_cost_usd | llm_judge
 	Type    string `json:"type"`
 	Config  string `json:"config"` // meaning depends on Type
 	Enabled bool   `json:"enabled"`
@@ -50,6 +50,10 @@ func Validate(a Assertion) error {
 		var n float64
 		if err := json.Unmarshal([]byte(a.Config), &n); err != nil || n <= 0 {
 			return fmt.Errorf("%s needs a positive number config", a.Type)
+		}
+	case "llm_judge":
+		if _, err := parseJudgeConfig(a.Config); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("unknown assertion type %q", a.Type)
