@@ -62,6 +62,7 @@ Otterscope is Apache-2.0, installs in one command, and is built for individuals 
 ## Install
 
 - **Binaries** — [Releases](https://github.com/otterscope/otterscope/releases) (Linux amd64/arm64, macOS, Windows) + `.deb`/`.rpm`
+- **Homebrew** — `brew install otterscope/tap/otterscope`
 - **Docker** — `ghcr.io/otterscope/otterscope`
 - **Go** — `go install github.com/otterscope/otterscope/cmd/otterscope@latest`
 
