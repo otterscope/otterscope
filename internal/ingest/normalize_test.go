@@ -77,6 +77,8 @@ func span(op string, extra map[string]any) ptrace.Traces {
 	sp.SetName("test-span")
 	sp.SetTraceID(pcommon.TraceID([16]byte{1}))
 	sp.SetSpanID(pcommon.SpanID([8]byte{2}))
+	sp.SetStartTimestamp(pcommon.Timestamp(1_000_000_000))
+	sp.SetEndTimestamp(pcommon.Timestamp(2_000_000_000))
 	if op != "" {
 		sp.Attributes().PutStr("gen_ai.operation.name", op)
 	}

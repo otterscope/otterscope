@@ -66,3 +66,48 @@ func TestSweep(t *testing.T) {
 		t.Fatalf("old steps remain: %d", steps)
 	}
 }
+
+// A step with the same span/trace ID in a different project must NOT
+// overwrite the original project's data (audit #49).
+func TestCrossProjectIsolation(t *testing.T) {
+	st := openTest(t)
+	ctx := context.Background()
+
+	a := sampleRun("shared-trace", 1000)
+	for i := range a {
+		a[i].Project = "alpha"
+	}
+	if err := st.UpsertSteps(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+
+	// Same IDs, different project, different tokens.
+	b := sampleRun("shared-trace", 5000)
+	for i := range b {
+		b[i].Project = "beta"
+		if b[i].LLM != nil {
+			b[i].LLM.InputTokens = 999
+		}
+	}
+	if err := st.UpsertSteps(ctx, b); err != nil {
+		t.Fatal(err)
+	}
+
+	alpha, _ := st.ListRuns(ctx, Filter{Project: "alpha"}, 10, 0)
+	beta, _ := st.ListRuns(ctx, Filter{Project: "beta"}, 10, 0)
+	if len(alpha) != 1 || len(beta) != 1 {
+		t.Fatalf("expected one run per project, got alpha=%d beta=%d", len(alpha), len(beta))
+	}
+	if alpha[0].InputTokens == 999 {
+		t.Fatal("project beta overwrote project alpha's run")
+	}
+	if alpha[0].InputTokens != 800 || beta[0].InputTokens != 999 {
+		t.Fatalf("token isolation broken: alpha=%d beta=%d", alpha[0].InputTokens, beta[0].InputTokens)
+	}
+
+	// Each project's GetRun sees only its own steps.
+	_, aSteps, _ := st.GetRun(ctx, "shared-trace")
+	if len(aSteps) != 3 {
+		t.Fatalf("GetRun mixed steps across projects: %d", len(aSteps))
+	}
+}
