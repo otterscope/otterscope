@@ -82,12 +82,16 @@ func normalizeSpan(sp ptrace.Span, service string) model.Step {
 			CacheReadTokens:     intAttr(attrs, "gen_ai.usage.cache_read.input_tokens"),
 			CacheCreationTokens: intAttr(attrs, "gen_ai.usage.cache_creation.input_tokens"),
 			ReasoningTokens:     intAttr(attrs, "gen_ai.usage.reasoning.output_tokens"),
+			InputMessages:       append(genAISystemInstructions(attrs), genAIMessages(attrs, "gen_ai.input.messages")...),
+			OutputMessages:      genAIMessages(attrs, "gen_ai.output.messages"),
 		}
 	case "execute_tool":
 		st.Kind = model.StepTool
 		st.Tool = &model.ToolCall{
-			Name:   stringAttr(attrs, "gen_ai.tool.name"),
-			CallID: stringAttr(attrs, "gen_ai.tool.call.id"),
+			Name:      stringAttr(attrs, "gen_ai.tool.name"),
+			CallID:    stringAttr(attrs, "gen_ai.tool.call.id"),
+			Arguments: stringAttr(attrs, "gen_ai.tool.call.arguments"),
+			Result:    stringAttr(attrs, "gen_ai.tool.call.result"),
 		}
 		if st.Tool.Name == "" {
 			st.Tool.Name = sp.Name()

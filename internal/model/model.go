@@ -59,6 +59,13 @@ type Step struct {
 	Tool *ToolCall // set when Kind == StepTool
 }
 
+// Message is one conversation message on an LLM call, with multimodal parts
+// flattened to text best-effort at normalization time.
+type Message struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 // LLMCall holds the model-call details of an llm step.
 type LLMCall struct {
 	Provider      string // gen_ai.provider.name (new) / gen_ai.system (old)
@@ -70,10 +77,15 @@ type LLMCall struct {
 	CacheReadTokens     int64 // subset of InputTokens served from provider cache
 	CacheCreationTokens int64 // subset of InputTokens written to provider cache
 	ReasoningTokens     int64 // subset of OutputTokens spent on reasoning
+	// Conversation content when the emitter opted into recording it.
+	InputMessages  []Message
+	OutputMessages []Message
 }
 
 // ToolCall holds the tool-execution details of a tool step.
 type ToolCall struct {
-	Name   string
-	CallID string
+	Name      string
+	CallID    string
+	Arguments string // serialized input, when recorded
+	Result    string // serialized output, when recorded
 }

@@ -33,6 +33,8 @@ func applyOpenInference(sp ptrace.Span, st *model.Step) {
 			CacheReadTokens:     intAttr(attrs, "llm.token_count.prompt_details.cache_read"),
 			CacheCreationTokens: intAttr(attrs, "llm.token_count.prompt_details.cache_write"),
 			ReasoningTokens:     intAttr(attrs, "llm.token_count.completion_details.reasoning"),
+			InputMessages:       openInferenceMessages(attrs, "llm.input_messages."),
+			OutputMessages:      openInferenceMessages(attrs, "llm.output_messages."),
 		}
 	case "EMBEDDING":
 		st.Kind = model.StepLLM
@@ -44,8 +46,10 @@ func applyOpenInference(sp ptrace.Span, st *model.Step) {
 	case "TOOL":
 		st.Kind = model.StepTool
 		st.Tool = &model.ToolCall{
-			Name:   stringAttr(attrs, "tool.name"),
-			CallID: stringAttr(attrs, "tool_call.id"),
+			Name:      stringAttr(attrs, "tool.name"),
+			CallID:    stringAttr(attrs, "tool_call.id"),
+			Arguments: stringAttr(attrs, "tool_call.function.arguments", "input.value"),
+			Result:    stringAttr(attrs, "output.value"),
 		}
 		if st.Tool.Name == "" {
 			st.Tool.Name = sp.Name()

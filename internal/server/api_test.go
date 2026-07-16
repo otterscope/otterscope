@@ -109,3 +109,76 @@ func TestListRunsEmpty(t *testing.T) {
 		t.Errorf("expected empty list, got %d", len(runs))
 	}
 }
+
+func TestGetRunAPI(t *testing.T) {
+	srv, st := testServer(t)
+	seedRun(t, st, "r1", 1000)
+	// Attach messages + tool detail through the real write path.
+	base := time.Unix(1000, 0)
+	err := st.UpsertSteps(context.Background(), []model.Step{
+		{
+			ID: "r1-llm", RunID: "r1", ParentID: "r1-root", Kind: model.StepLLM,
+			Name: "chat m1", Status: model.StatusOK,
+			Start: base.Add(time.Second), End: base.Add(3 * time.Second),
+			LLM: &model.LLMCall{
+				RequestModel: "claude-sonnet-5", InputTokens: 100, OutputTokens: 20,
+				InputMessages:  []model.Message{{Role: "user", Content: "hi"}},
+				OutputMessages: []model.Message{{Role: "assistant", Content: "hello"}},
+			},
+		},
+		{
+			ID: "r1-tool", RunID: "r1", ParentID: "r1-root", Kind: model.StepTool,
+			Name: "execute_tool t", Status: model.StatusOK,
+			Start: base.Add(4 * time.Second), End: base.Add(5 * time.Second),
+			Tool: &model.ToolCall{Name: "t", Arguments: `{"a":1}`, Result: `"done"`},
+		},
+	})
+	if err != nil {
+		t.Fatalf("seed detail: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/runs/r1", nil)
+	w := httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Run   runJSON    `json:"run"`
+		Steps []stepJSON `json:"steps"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad JSON: %v", err)
+	}
+	if resp.Run.ID != "r1" || len(resp.Steps) != 3 {
+		t.Fatalf("run %s with %d steps", resp.Run.ID, len(resp.Steps))
+	}
+	var llm, tool *stepJSON
+	for i := range resp.Steps {
+		switch resp.Steps[i].Kind {
+		case "llm":
+			llm = &resp.Steps[i]
+		case "tool":
+			tool = &resp.Steps[i]
+		}
+	}
+	if llm == nil || llm.LLM == nil || len(llm.LLM.InputMessages) != 1 || llm.LLM.InputMessages[0].Content != "hi" {
+		t.Errorf("llm messages did not survive round-trip: %+v", llm)
+	}
+	if llm.OffsetMS != 1000 || llm.DurationMS != 2000 {
+		t.Errorf("llm timing: offset=%d duration=%d", llm.OffsetMS, llm.DurationMS)
+	}
+	if tool == nil || tool.Tool == nil || tool.Tool.Arguments != `{"a":1}` || tool.Tool.Result != `"done"` {
+		t.Errorf("tool detail did not survive round-trip: %+v", tool)
+	}
+}
+
+func TestGetRunNotFoundAPI(t *testing.T) {
+	srv, _ := testServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/runs/nope", nil)
+	w := httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}

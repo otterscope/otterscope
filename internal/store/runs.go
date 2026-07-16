@@ -39,8 +39,8 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 		 start_ns, end_ns, error,
 		 provider, request_model, response_model, input_tokens, output_tokens,
 		 cache_read_tokens, cache_creation_tokens, reasoning_tokens,
-		 tool_name, tool_call_id)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		 tool_name, tool_call_id, detail)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 			st.Start.UnixNano(), st.End.UnixNano(), st.Error,
 			llm.Provider, llm.RequestModel, llm.ResponseModel, llm.InputTokens, llm.OutputTokens,
 			llm.CacheReadTokens, llm.CacheCreationTokens, llm.ReasoningTokens,
-			tool.Name, tool.CallID,
+			tool.Name, tool.CallID, marshalDetail(st),
 		); err != nil {
 			return fmt.Errorf("insert step %s: %w", st.ID, err)
 		}
@@ -179,7 +179,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 		       start_ns, end_ns, error,
 		       provider, request_model, response_model, input_tokens, output_tokens,
 		       cache_read_tokens, cache_creation_tokens, reasoning_tokens,
-		       tool_name, tool_call_id
+		       tool_name, tool_call_id, detail
 		FROM steps WHERE run_id = ? ORDER BY start_ns`, id)
 	if err != nil {
 		return model.Run{}, nil, err
@@ -193,11 +193,12 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 		var sNS, eNS int64
 		var llm model.LLMCall
 		var tool model.ToolCall
+		var detail string
 		if err := rows.Scan(&st.ID, &st.RunID, &st.ParentID, &kind, &st.Name, &st.Service, &st.AgentName, &stStatus,
 			&sNS, &eNS, &st.Error,
 			&llm.Provider, &llm.RequestModel, &llm.ResponseModel, &llm.InputTokens, &llm.OutputTokens,
 			&llm.CacheReadTokens, &llm.CacheCreationTokens, &llm.ReasoningTokens,
-			&tool.Name, &tool.CallID); err != nil {
+			&tool.Name, &tool.CallID, &detail); err != nil {
 			return model.Run{}, nil, err
 		}
 		st.Kind = model.StepKind(kind)
@@ -210,6 +211,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 		if st.Kind == model.StepTool {
 			st.Tool = &tool
 		}
+		applyDetail(&st, detail)
 		steps = append(steps, st)
 	}
 	return r, steps, rows.Err()
