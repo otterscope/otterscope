@@ -59,6 +59,7 @@ func (s *Server) uiHandler() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 	})
+	mux.HandleFunc("GET /api/runs", s.handleListRuns)
 	mux.Handle("GET /", uiRoot())
 	return mux
 }

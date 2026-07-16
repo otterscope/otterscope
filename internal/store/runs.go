@@ -80,11 +80,11 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 // aggregates structurally idempotent instead of bookkept.
 func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
 	var (
-		startNS, endNS       int64
-		inTok, outTok        int64
-		llmCalls, toolCalls  int64
-		hasError, hasRoot    bool
-		service, agent, oerr string
+		startNS, endNS               int64
+		inTok, outTok                int64
+		llmCalls, toolCalls          int64
+		hasError, hasRoot            bool
+		service, agent, oerr, models string
 	)
 	err := tx.QueryRowContext(ctx, `
 		SELECT min(start_ns), max(end_ns),
@@ -93,9 +93,10 @@ func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
 		       max(error != ''), max(parent_id = ''),
 		       coalesce((SELECT service FROM steps WHERE run_id = ?1 AND service != '' LIMIT 1), ''),
 		       coalesce((SELECT agent_name FROM steps WHERE run_id = ?1 AND agent_name != '' LIMIT 1), ''),
-		       coalesce((SELECT error FROM steps WHERE run_id = ?1 AND error != '' ORDER BY start_ns LIMIT 1), '')
+		       coalesce((SELECT error FROM steps WHERE run_id = ?1 AND error != '' ORDER BY start_ns LIMIT 1), ''),
+		       coalesce((SELECT group_concat(DISTINCT request_model) FROM steps WHERE run_id = ?1 AND request_model != ''), '')
 		FROM steps WHERE run_id = ?1`, runID).
-		Scan(&startNS, &endNS, &inTok, &outTok, &llmCalls, &toolCalls, &hasError, &hasRoot, &service, &agent, &oerr)
+		Scan(&startNS, &endNS, &inTok, &outTok, &llmCalls, &toolCalls, &hasError, &hasRoot, &service, &agent, &oerr, &models)
 	if err != nil {
 		return err
 	}
@@ -110,15 +111,16 @@ func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO runs (id, service, agent_name, status, start_ns, end_ns,
-		                  input_tokens, output_tokens, llm_calls, tool_calls, error)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?)
+		                  input_tokens, output_tokens, llm_calls, tool_calls, models, error)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 		  service=excluded.service, agent_name=excluded.agent_name,
 		  status=excluded.status, start_ns=excluded.start_ns, end_ns=excluded.end_ns,
 		  input_tokens=excluded.input_tokens, output_tokens=excluded.output_tokens,
-		  llm_calls=excluded.llm_calls, tool_calls=excluded.tool_calls, error=excluded.error`,
+		  llm_calls=excluded.llm_calls, tool_calls=excluded.tool_calls,
+		  models=excluded.models, error=excluded.error`,
 		runID, service, agent, string(status), startNS, endNS,
-		inTok, outTok, llmCalls, toolCalls, oerr)
+		inTok, outTok, llmCalls, toolCalls, models, oerr)
 	return err
 }
 
@@ -127,7 +129,7 @@ func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
 func (s *Store) ListRuns(ctx context.Context, limit, offset int) ([]model.Run, error) {
 	rows, err := s.reader.QueryContext(ctx, `
 		SELECT id, service, agent_name, status, start_ns, end_ns,
-		       input_tokens, output_tokens, llm_calls, tool_calls, error
+		       input_tokens, output_tokens, llm_calls, tool_calls, models, error
 		FROM runs ORDER BY start_ns DESC LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, err
@@ -140,7 +142,7 @@ func (s *Store) ListRuns(ctx context.Context, limit, offset int) ([]model.Run, e
 		var status string
 		var startNS, endNS int64
 		if err := rows.Scan(&r.ID, &r.Service, &r.AgentName, &status, &startNS, &endNS,
-			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Error); err != nil {
+			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models, &r.Error); err != nil {
 			return nil, err
 		}
 		r.Status = model.Status(status)
@@ -161,10 +163,10 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 	var startNS, endNS int64
 	err := s.reader.QueryRowContext(ctx, `
 		SELECT id, service, agent_name, status, start_ns, end_ns,
-		       input_tokens, output_tokens, llm_calls, tool_calls, error
+		       input_tokens, output_tokens, llm_calls, tool_calls, models, error
 		FROM runs WHERE id = ?`, id).
 		Scan(&r.ID, &r.Service, &r.AgentName, &status, &startNS, &endNS,
-			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Error)
+			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models, &r.Error)
 	if err != nil {
 		return model.Run{}, nil, err
 	}
