@@ -48,6 +48,12 @@ func filterWhere(f Filter) (string, []any) {
 		where += " AND models LIKE ? ESCAPE '\\'"
 		args = append(args, "%"+escapeLike(f.Model)+"%")
 	}
+	if q := ftsQuery(f.Query); q != "" {
+		where += " AND EXISTS (SELECT 1 FROM steps_fts" +
+			" WHERE steps_fts.project = runs.project AND steps_fts.run_id = runs.id" +
+			" AND steps_fts MATCH ?)"
+		args = append(args, q)
+	}
 	if !f.Since.IsZero() {
 		where += " AND start_ns >= ?"
 		args = append(args, f.Since.UnixNano())

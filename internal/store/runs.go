@@ -47,6 +47,20 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 	}
 	defer ins.Close()
 
+	// FTS index is kept in sync per step: delete any prior row (idempotent
+	// re-delivery) then insert the searchable content.
+	ftsDel, err := tx.PrepareContext(ctx, `DELETE FROM steps_fts WHERE project = ? AND step_id = ?`)
+	if err != nil {
+		return err
+	}
+	defer ftsDel.Close()
+	ftsIns, err := tx.PrepareContext(ctx,
+		`INSERT INTO steps_fts (project, run_id, step_id, content) VALUES (?,?,?,?)`)
+	if err != nil {
+		return err
+	}
+	defer ftsIns.Close()
+
 	// Runs are keyed by (project, run_id) — re-derive each touched pair.
 	type runKey struct{ project, runID string }
 	runKeys := make(map[runKey]bool)
@@ -70,6 +84,12 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 			tool.Name, tool.CallID, marshalDetail(st), nullableFloat(llm.CostUSD),
 		); err != nil {
 			return fmt.Errorf("insert step %s: %w", st.ID, err)
+		}
+		if _, err := ftsDel.ExecContext(ctx, st.Project, st.ID); err != nil {
+			return fmt.Errorf("fts delete %s: %w", st.ID, err)
+		}
+		if _, err := ftsIns.ExecContext(ctx, st.Project, st.RunID, st.ID, ftsContent(st)); err != nil {
+			return fmt.Errorf("fts insert %s: %w", st.ID, err)
 		}
 		runKeys[runKey{st.Project, st.RunID}] = true
 	}
@@ -158,6 +178,7 @@ type Filter struct {
 	Status  string    // exact match: running | ok | error
 	Service string    // prefix match (index-friendly)
 	Model   string    // substring match against the run's models list
+	Query   string    // full-text search over step content (messages, tool i/o)
 	Since   time.Time // start >= Since
 	Until   time.Time // start <= Until
 }
@@ -202,6 +223,50 @@ func (s *Store) ListRuns(ctx context.Context, f Filter, limit, offset int) ([]mo
 func escapeLike(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return r.Replace(s)
+}
+
+// ftsContent builds the searchable text for a step: name, model/provider,
+// message contents, and tool i/o.
+func ftsContent(st model.Step) string {
+	var b strings.Builder
+	b.WriteString(st.Name)
+	if st.LLM != nil {
+		b.WriteByte(' ')
+		b.WriteString(st.LLM.Provider)
+		b.WriteByte(' ')
+		b.WriteString(st.LLM.RequestModel)
+		for _, m := range st.LLM.InputMessages {
+			b.WriteByte(' ')
+			b.WriteString(m.Content)
+		}
+		for _, m := range st.LLM.OutputMessages {
+			b.WriteByte(' ')
+			b.WriteString(m.Content)
+		}
+	}
+	if st.Tool != nil {
+		b.WriteByte(' ')
+		b.WriteString(st.Tool.Name)
+		b.WriteByte(' ')
+		b.WriteString(st.Tool.Arguments)
+		b.WriteByte(' ')
+		b.WriteString(st.Tool.Result)
+	}
+	return b.String()
+}
+
+// ftsQuery turns free-text into a safe FTS5 MATCH expression: each
+// whitespace term becomes a quoted token (neutralizing FTS operators and
+// punctuation), AND-ed together. Returns "" when there's nothing to match.
+func ftsQuery(q string) string {
+	fields := strings.Fields(q)
+	if len(fields) == 0 {
+		return ""
+	}
+	for i, f := range fields {
+		fields[i] = `"` + strings.ReplaceAll(f, `"`, `""`) + `"`
+	}
+	return strings.Join(fields, " ")
 }
 
 // ErrNotFound is returned by GetRun for unknown run IDs.

@@ -396,3 +396,8 @@ td.truncate {
   white-space: nowrap;
   color: var(--muted);
 }
+
+.filters input.search {
+  flex: 1;
+  min-width: 14rem;
+}
