@@ -35,6 +35,12 @@ Open **http://localhost:8317**. No account, no config file, no other services.
 
 Want to poke around before wiring an agent? `./otterscope sample` seeds realistic demo runs.
 
+Want your agent to inspect *itself*? Otterscope ships an [MCP server](docs/mcp.md), so Claude Code and other MCP clients can query your runs, cost, and stats:
+
+```sh
+claude mcp add otterscope --transport http http://localhost:8317/mcp
+```
+
 ## What you get
 
 - **Runs, not span soup** — every trace becomes an agent run: steps, tool loops, per-run tokens and cost, error surfacing, live-tailing list with filters (status, model, service, project, time) and full-text search over message and tool content — all URL-shareable.
