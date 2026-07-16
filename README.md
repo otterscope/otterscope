@@ -52,6 +52,8 @@ claude mcp add otterscope --transport http http://localhost:8317/mcp
 - **Compare view** — error rate, p50/p95 latency, cost, and assertion pass rates side-by-side across any two filters: this week vs last, model A vs model B. *"Did my prompt change make things worse?"* is one URL.
 - **Alerting** — rules on error rate, cost, p95 latency, or an assertion's fail rate over a window; Otterscope POSTs a JSON notification to your webhook (Slack/Discord/…) when a rule starts firing and again when it resolves.
 
+  ![Alerts — rules on error rate, cost, latency, or assertion failures firing to a webhook](docs/screenshots/alerts.png)
+
   ![Compare — two models side by side: error rate, latency percentiles, cost, assertion pass rates](docs/screenshots/compare.png)
 - **Drop-in OTel compatibility** — normalizes the OTel GenAI conventions (both current dialects), OpenInference (OpenAI Agents SDK, CrewAI, LangChain), and the Vercel AI SDK. Raw payloads are retained, so old data benefits from future normalizer improvements.
 - **Ask your agent about itself** — a built-in [MCP server](docs/mcp.md) (`POST /mcp`) lets Claude Code and other MCP clients query your runs, steps, cost, and stats. `claude mcp add otterscope --transport http http://localhost:8317/mcp`.
