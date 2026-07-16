@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/alerts"
 	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/ingest"
 	"github.com/otterscope/otterscope/internal/pricing"
@@ -22,17 +23,19 @@ import (
 
 // Server hosts the UI/API and the OTLP receiver.
 type Server struct {
-	st      *store.Store
-	prices  *pricing.Table
-	judge   evals.Endpoint
-	eval    *ingest.Evaluator
-	version string
+	st            *store.Store
+	prices        *pricing.Table
+	judge         evals.Endpoint
+	eval          *ingest.Evaluator
+	alertInterval time.Duration
+	version       string
 }
 
-// New creates a Server backed by st, pricing LLM calls via prices and
-// judging with the server-configured endpoint.
-func New(st *store.Store, prices *pricing.Table, judge evals.Endpoint, version string) *Server {
-	return &Server{st: st, prices: prices, judge: judge, version: version}
+// New creates a Server backed by st, pricing LLM calls via prices, judging
+// with the server-configured endpoint, and evaluating alerts every
+// alertInterval (0 disables the watcher).
+func New(st *store.Store, prices *pricing.Table, judge evals.Endpoint, alertInterval time.Duration, version string) *Server {
+	return &Server{st: st, prices: prices, judge: judge, alertInterval: alertInterval, version: version}
 }
 
 // Run serves until ctx is canceled, then shuts both listeners down and
@@ -41,6 +44,12 @@ func (s *Server) Run(ctx context.Context, uiAddr, otlpAddr string) error {
 	s.eval = ingest.NewEvaluator(s.st, s.judge)
 	s.eval.Start()
 	defer s.eval.Stop() // drains queued evaluation before Run returns
+
+	if s.alertInterval > 0 {
+		watcher := alerts.NewWatcher(s.st, s.alertInterval)
+		watcher.Start()
+		defer watcher.Stop()
+	}
 
 	ui := &http.Server{Addr: uiAddr, Handler: s.uiHandler()}
 	otlp := &http.Server{Addr: otlpAddr, Handler: s.otlpHandler()}
@@ -77,6 +86,9 @@ func (s *Server) uiHandler() http.Handler {
 	mux.HandleFunc("POST /api/assertions", s.handleCreateAssertion)
 	mux.HandleFunc("DELETE /api/assertions/{id}", s.handleDeleteAssertion)
 	mux.HandleFunc("POST /api/assertions/evaluate", s.handleEvaluate)
+	mux.HandleFunc("GET /api/alerts", s.handleListAlerts)
+	mux.HandleFunc("POST /api/alerts", s.handleCreateAlert)
+	mux.HandleFunc("DELETE /api/alerts/{id}", s.handleDeleteAlert)
 	mux.Handle("GET /", uiRoot())
 	return mux
 }

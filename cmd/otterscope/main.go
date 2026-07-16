@@ -78,6 +78,7 @@ func serve(args []string) error {
 	pricingPath := fs.String("pricing", "", "JSON file of pricing overrides, merged over built-in rates")
 	retention := fs.Duration("retention", 0, "delete runs older than this (e.g. 720h = 30 days); 0 keeps everything")
 	judgeURL := fs.String("judge-url", "https://api.openai.com/v1", "OpenAI-compatible endpoint for llm_judge assertions")
+	alertInterval := fs.Duration("alert-interval", time.Minute, "how often to evaluate alert rules; 0 disables alerting")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func serve(args []string) error {
 	}
 	judge := evals.Endpoint{BaseURL: *judgeURL, Key: judgeKey}
 
-	srv := server.New(st, prices, judge, version)
+	srv := server.New(st, prices, judge, *alertInterval, version)
 	return srv.Run(ctx, *uiAddr, *otlpAddr)
 }
 

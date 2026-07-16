@@ -341,3 +341,58 @@ nav {
 .compare-table td:first-child {
   color: var(--muted);
 }
+
+nav {
+  margin-left: auto;
+  display: flex;
+  gap: 1rem;
+}
+
+.alert-form {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.alert-form input,
+.alert-form select,
+.alert-form button {
+  background: #10161d;
+  color: var(--fg);
+  border: 1px solid #1f2733;
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.alert-form button {
+  background: var(--accent);
+  color: #08111a;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.alert-form button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #ff8e8e;
+  cursor: pointer;
+  font-size: 0.82rem;
+  padding: 0;
+}
+
+td.truncate {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}

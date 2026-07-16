@@ -23,7 +23,7 @@ func testServer(t *testing.T) (*Server, *store.Store) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
-	return New(st, pricing.Default(), evals.Endpoint{}, "test"), st
+	return New(st, pricing.Default(), evals.Endpoint{}, 0, "test"), st
 }
 
 func seedRun(t *testing.T, st *store.Store, id string, startSec int64) {

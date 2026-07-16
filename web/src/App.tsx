@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import RunsList from "./RunsList";
 import RunDetail from "./RunDetail";
 import Compare from "./Compare";
+import Alerts from "./Alerts";
 
 type Health = { status: string; version: string };
 
@@ -53,6 +54,15 @@ export default function App() {
           >
             compare
           </a>
+          <a
+            href="/alerts"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/alerts");
+            }}
+          >
+            alerts
+          </a>
         </nav>
       </header>
       <main>
@@ -60,6 +70,8 @@ export default function App() {
           <RunDetail id={runMatch[1]} navigate={navigate} />
         ) : path === "/compare" ? (
           <Compare />
+        ) : path === "/alerts" ? (
+          <Alerts />
         ) : (
           <RunsList navigate={navigate} />
         )}
