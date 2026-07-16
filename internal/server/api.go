@@ -216,6 +216,20 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 	limit := queryInt(r, "limit", 50, 1, 500)
 	offset := queryInt(r, "offset", 0, 0, 1<<30)
 
+	runs, err := s.st.ListRuns(r.Context(), parseFilter(r), limit, offset)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	out := make([]runJSON, 0, len(runs))
+	for _, run := range runs {
+		out = append(out, toRunJSON(run))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runs": out})
+}
+
+// parseFilter reads the shared run-filter query params.
+func parseFilter(r *http.Request) store.Filter {
 	q := r.URL.Query()
 	f := store.Filter{
 		Project: q.Get("project"),
@@ -233,17 +247,21 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 			f.Until = t
 		}
 	}
+	return f
+}
 
-	runs, err := s.st.ListRuns(r.Context(), f, limit, offset)
+// handleStats serves GET /api/stats with the same filter params as
+// /api/runs — the compare view calls it once per side.
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := s.st.GetStats(r.Context(), parseFilter(r))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
 		return
 	}
-	out := make([]runJSON, 0, len(runs))
-	for _, run := range runs {
-		out = append(out, toRunJSON(run))
+	if stats.AssertionRates == nil {
+		stats.AssertionRates = []store.AssertionRate{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": out})
+	writeJSON(w, http.StatusOK, stats)
 }
 
 // queryInt parses an integer query param with default and clamping.
