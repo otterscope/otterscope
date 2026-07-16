@@ -70,6 +70,22 @@ docker_manifests:
       - ghcr.io/otterscope/otterscope:{{ .Version }}-amd64
       - ghcr.io/otterscope/otterscope:{{ .Version }}-arm64
 
+# Formula (not cask): Linuxbrew users get support too, and the deprecation
+# has a long sunset. dockers → dockers_v2 migration tracked in #27 notes.
+brews:
+  - repository:
+      owner: otterscope
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/otterscope/otterscope
+    description: Lightweight, self-hosted observability and evals for AI agents
+    license: Apache-2.0
+    install: |
+      bin.install "otterscope"
+    test: |
+      system "#{bin}/otterscope", "version"
+
 changelog:
   use: github
 
