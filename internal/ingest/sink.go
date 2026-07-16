@@ -87,10 +87,12 @@ func priceSteps(steps []model.Step, prices *pricing.Table) {
 }
 
 // Renormalize replays every stored raw batch through the current normalizer
-// and pricing table. UpsertSteps is idempotent, so re-running it is always
-// safe; run after a normalizer or pricing improvement to backfill.
-func Renormalize(ctx context.Context, st *store.Store, prices *pricing.Table) error {
-	return st.EachRawBatch(ctx, func(project string, payload []byte) error {
+// and pricing table, returning the number of batches replayed. UpsertSteps
+// is idempotent, so re-running it is always safe; run after a normalizer or
+// pricing improvement to backfill.
+func Renormalize(ctx context.Context, st *store.Store, prices *pricing.Table) (int, error) {
+	n := 0
+	err := st.EachRawBatch(ctx, func(project string, payload []byte) error {
 		td, err := decompressTraces(payload)
 		if err != nil {
 			return fmt.Errorf("decode raw batch: %w", err)
@@ -100,8 +102,13 @@ func Renormalize(ctx context.Context, st *store.Store, prices *pricing.Table) er
 		for i := range steps {
 			steps[i].Project = project
 		}
-		return st.UpsertSteps(ctx, steps)
+		if err := st.UpsertSteps(ctx, steps); err != nil {
+			return err
+		}
+		n++
+		return nil
 	})
+	return n, err
 }
 
 func compressTraces(td ptrace.Traces) ([]byte, error) {

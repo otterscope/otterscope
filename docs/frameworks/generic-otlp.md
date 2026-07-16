@@ -23,4 +23,6 @@ Rules of thumb:
   classification, never data.
 - Unknown models get tokens but no cost (add rates via `serve -pricing`).
 - Raw payloads are retained, so runs re-normalize with future Otterscope
-  improvements — instrument now, benefit later.
+  improvements — instrument now, benefit later. After upgrading, run
+  `otterscope renormalize` to backfill existing data (safe to repeat;
+  for large stores prefer running it while `serve` is stopped).

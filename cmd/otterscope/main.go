@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/ingest"
 	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/sample"
 	"github.com/otterscope/otterscope/internal/server"
@@ -29,6 +30,11 @@ func main() {
 	switch os.Args[1] {
 	case "serve":
 		if err := serve(os.Args[2:]); err != nil {
+			slog.Error("fatal", "err", err)
+			os.Exit(1)
+		}
+	case "renormalize":
+		if err := renormalizeCmd(os.Args[2:]); err != nil {
 			slog.Error("fatal", "err", err)
 			os.Exit(1)
 		}
@@ -58,6 +64,8 @@ commands:
   project add <name>      create a project and print its ingest key
   project list            list projects and their ingest keys
   sample                  seed demo data (services, runs, assertions)
+  renormalize             replay stored raw batches through the current
+                          normalizer and pricing table (backfill after upgrades)
   version                 print version`)
 }
 
@@ -119,6 +127,37 @@ func sweepLoop(ctx context.Context, st *store.Store, keep time.Duration) {
 		case <-tick.C:
 		}
 	}
+}
+
+func renormalizeCmd(args []string) error {
+	fs := flag.NewFlagSet("renormalize", flag.ExitOnError)
+	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
+	pricingPath := fs.String("pricing", "", "JSON file of pricing overrides, merged over built-in rates")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	prices := pricing.Default()
+	if *pricingPath != "" {
+		data, err := os.ReadFile(*pricingPath)
+		if err != nil {
+			return fmt.Errorf("read pricing overrides: %w", err)
+		}
+		if err := prices.MergeJSON(data); err != nil {
+			return err
+		}
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, *dbPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer st.Close()
+	n, err := ingest.Renormalize(ctx, st, prices)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("replayed %d raw batches through the current normalizer and pricing table\n", n)
+	return nil
 }
 
 func sampleCmd(args []string) error {
