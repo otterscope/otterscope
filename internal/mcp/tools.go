@@ -33,6 +33,7 @@ func Registry(st *store.Store) []Tool {
 				"status":  strProp("Filter by run status: ok, error, or running"),
 				"model":   strProp("Substring match on model id"),
 				"service": strProp("Filter by service name"),
+				"q":       strProp("Full-text search over message and tool content"),
 				"limit":   intProp("Max runs to return (default 20, max 200)"),
 			}, nil),
 			Handler: func(ctx context.Context, args map[string]any) (string, error) {
@@ -41,6 +42,7 @@ func Registry(st *store.Store) []Tool {
 					Status:  argStr(args, "status"),
 					Model:   argStr(args, "model"),
 					Service: argStr(args, "service"),
+					Query:   argStr(args, "q"),
 				}
 				limit := argInt(args, "limit", 20)
 				if limit <= 0 || limit > 200 {

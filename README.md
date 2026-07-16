@@ -37,7 +37,7 @@ Want to poke around before wiring an agent? `./otterscope sample` seeds realisti
 
 ## What you get
 
-- **Runs, not span soup** — every trace becomes an agent run: steps, tool loops, per-run tokens and cost, error surfacing, live-tailing list with filters (status, model, service, project, time — all URL-shareable).
+- **Runs, not span soup** — every trace becomes an agent run: steps, tool loops, per-run tokens and cost, error surfacing, live-tailing list with filters (status, model, service, project, time) and full-text search over message and tool content — all URL-shareable.
 - **Run inspector** — step timeline with proportional duration bars; click any LLM call to read the actual messages in/out, token breakdowns (cache reads, reasoning), and cost; tool calls show arguments and results.
 
   ![Run detail — step timeline, assertion chips, and message inspector](docs/screenshots/run-detail.png)

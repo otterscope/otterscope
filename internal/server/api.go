@@ -237,6 +237,7 @@ func parseFilter(r *http.Request) store.Filter {
 		Status:  q.Get("status"),
 		Service: q.Get("service"),
 		Model:   q.Get("model"),
+		Query:   q.Get("q"),
 	}
 	if v := q.Get("since"); v != "" {
 		if t, err := time.Parse(time.RFC3339, v); err == nil {

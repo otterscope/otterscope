@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 export type FilterState = {
+  q: string;
   project: string;
   status: string;
   model: string;
@@ -11,6 +12,7 @@ export type FilterState = {
 export function filtersFromURL(): FilterState {
   const q = new URLSearchParams(window.location.search);
   return {
+    q: q.get("q") ?? "",
     project: q.get("project") ?? "",
     status: q.get("status") ?? "",
     model: q.get("model") ?? "",
@@ -58,6 +60,12 @@ export default function Filters({
 
   return (
     <div className="filters">
+      <input
+        className="search"
+        placeholder="search messages & tool i/o…"
+        value={f.status === undefined ? "" : f.q}
+        onChange={(e) => update({ q: e.target.value })}
+      />
       <select
         value={f.status}
         onChange={(e) => update({ status: e.target.value })}
