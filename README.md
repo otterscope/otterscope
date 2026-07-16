@@ -2,39 +2,66 @@
 
 **Lightweight, self-hosted observability and evals for AI agents.**
 
-One static binary. One SQLite file. No ClickHouse, no Redis, no S3, no seat fees, no trace metering. Point your agent's OpenTelemetry exporter at Otterscope and get an agent-run-first view of everything it did — LLM calls, tool calls, loops, errors, latency, and cost — stored on your own disk with unlimited retention.
+One static binary. One SQLite file. No ClickHouse, no Redis, no S3, no seat fees, no trace metering. Point your agent's OpenTelemetry exporter at Otterscope and get an agent-run-first view of everything it did — LLM calls, tool calls, loops, errors, latency, and cost — plus assertions and LLM-as-judge evals scored onto your real production runs. All on your own disk, with unlimited retention.
 
 > Think *Plausible Analytics, but for AI agents*.
 
-## Why
+## Quick start
 
-Existing LLM observability stacks are built for enterprises:
+```sh
+# grab a binary from Releases, then:
+./otterscope serve
+```
+
+or with Docker:
+
+```sh
+docker run -p 8317:8317 -p 4318:4318 -v otterscope:/data ghcr.io/otterscope/otterscope
+```
+
+Point any OTel-instrumented agent at it:
+
+```sh
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+```
+
+Open **http://localhost:8317**. No account, no config file, no other services.
+
+Want to poke around before wiring an agent? `./otterscope sample` seeds realistic demo runs.
+
+## What you get
+
+- **Runs, not span soup** — every trace becomes an agent run: steps, tool loops, per-run tokens and cost, error surfacing, live-tailing list with filters (status, model, service, project, time — all URL-shareable).
+- **Run inspector** — step timeline with proportional duration bars; click any LLM call to read the actual messages in/out, token breakdowns (cache reads, reasoning), and cost; tool calls show arguments and results.
+- **Cost tracking** — maintained pricing table for major providers (override or extend with `serve -pricing yours.json`); unknown models show tokens, never fabricated costs.
+- **Evals fused into the trace store** — assertions (`contains`, `regex`, `is_json`, latency/cost thresholds) and **LLM-as-judge** (any OpenAI-compatible endpoint, your key stays in your env) scored onto real runs at ingest or backfilled on demand. No second product.
+- **Compare view** — error rate, p50/p95 latency, cost, and assertion pass rates side-by-side across any two filters: this week vs last, model A vs model B. *"Did my prompt change make things worse?"* is one URL.
+- **Drop-in OTel compatibility** — normalizes the OTel GenAI conventions (both current dialects), OpenInference (OpenAI Agents SDK, CrewAI, LangChain), and the Vercel AI SDK. Raw payloads are retained, so old data benefits from future normalizer improvements.
+- **Projects + ingest keys** for isolating multiple agents; optional retention sweep (`-retention 720h`) if you *want* to delete data.
+
+## Connecting your framework
+
+Guides for [Pydantic AI](docs/frameworks/pydantic-ai.md), [OpenAI Agents SDK](docs/frameworks/openai-agents.md), [Vercel AI SDK](docs/frameworks/vercel-ai-sdk.md), [LangGraph](docs/frameworks/langgraph.md), and [anything else that speaks OTLP](docs/frameworks/generic-otlp.md).
+
+## Why not Langfuse / LangSmith / Phoenix?
+
+They're good products aimed at a different deployment reality:
 
 - **Langfuse** self-hosting requires Postgres + ClickHouse + Redis + S3 — six containers to log a few thousand LLM calls a day.
 - **LangSmith** and **Braintrust** gate self-hosting behind enterprise contracts.
 - **Phoenix** is ELv2-licensed with an upsell funnel.
-- Generic OTel dashboards show you span soup, not agent runs.
 
-Small teams and individuals running agents in production need something that installs in one command, speaks OpenTelemetry, and answers the questions that actually matter: *What did this run do? Where did it loop? What did it cost? Did quality regress?*
+Otterscope is Apache-2.0, installs in one command, and is built for individuals and small teams whose traces contain customer data they'd rather keep on their own disk.
 
-## What it does
+## Install
 
-- **OTLP-native ingestion** — drop-in `OTEL_EXPORTER_OTLP_ENDPOINT` compatibility. Normalizes the OTel GenAI semantic conventions (both current dialects) and OpenInference, so traces from the OpenAI Agents SDK, LangGraph, Pydantic AI, Vercel AI SDK, CrewAI, and hand-rolled agents all land coherently.
-- **Agent-run-first data model** — runs → steps → LLM/tool calls are the primary objects, not raw spans. See tool loops, per-run cost, and failure points at a glance.
-- **Evals fused into the trace store** — score live production runs with assertions and LLM-as-judge, compare across time and versions. No second product, no per-score fees.
-- **Single binary, embedded SQLite** — `otterscope serve` and you're done. Also available as a single Docker container.
+- **Binaries** — [Releases](https://github.com/otterscope/otterscope/releases) (Linux amd64/arm64, macOS, Windows) + `.deb`/`.rpm`
+- **Docker** — `ghcr.io/otterscope/otterscope`
+- **Go** — `go install github.com/otterscope/otterscope/cmd/otterscope@latest`
 
-## Status
+## Development
 
-Early development — not yet usable. Follow the [roadmap](docs/ROADMAP.md).
-
-## Quick start (target UX)
-
-```sh
-otterscope serve
-# then in your agent's environment:
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
-```
+Go backend, embedded React UI. `go build ./...` works without building the frontend; `cd web && npm run build` embeds the real UI. See [CLAUDE.md](CLAUDE.md) for architecture and [docs/WORKFLOW.md](docs/WORKFLOW.md) for the contribution process.
 
 ## License
 

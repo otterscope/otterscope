@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/otterscope/otterscope/internal/pricing"
+	"github.com/otterscope/otterscope/internal/sample"
 	"github.com/otterscope/otterscope/internal/server"
 	"github.com/otterscope/otterscope/internal/store"
 )
@@ -28,6 +29,11 @@ func main() {
 	switch os.Args[1] {
 	case "serve":
 		if err := serve(os.Args[2:]); err != nil {
+			slog.Error("fatal", "err", err)
+			os.Exit(1)
+		}
+	case "sample":
+		if err := sampleCmd(os.Args[2:]); err != nil {
 			slog.Error("fatal", "err", err)
 			os.Exit(1)
 		}
@@ -51,6 +57,7 @@ commands:
   serve                   start the ingest + UI server
   project add <name>      create a project and print its ingest key
   project list            list projects and their ingest keys
+  sample                  seed demo data (services, runs, assertions)
   version                 print version`)
 }
 
@@ -112,6 +119,26 @@ func sweepLoop(ctx context.Context, st *store.Store, keep time.Duration) {
 		case <-tick.C:
 		}
 	}
+}
+
+func sampleCmd(args []string) error {
+	fs := flag.NewFlagSet("sample", flag.ExitOnError)
+	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
+	n := fs.Int("runs", 60, "number of sample runs to create")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, *dbPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer st.Close()
+	if err := sample.Seed(ctx, st, *n); err != nil {
+		return err
+	}
+	fmt.Printf("seeded %d sample runs into %s\n", *n, *dbPath)
+	return nil
 }
 
 func projectCmd(args []string) error {
