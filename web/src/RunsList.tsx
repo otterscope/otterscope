@@ -28,7 +28,11 @@ export default function RunsList({
   }, [filters]);
 
   const hasFilters =
-    filters.status || filters.model || filters.service || filters.range;
+    filters.project ||
+    filters.status ||
+    filters.model ||
+    filters.service ||
+    filters.range;
 
   return (
     <>

@@ -36,12 +36,12 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 	}
 	ins, err := tx.PrepareContext(ctx, `
 		INSERT OR REPLACE INTO steps
-		(id, run_id, parent_id, kind, name, service, agent_name, status,
+		(id, run_id, parent_id, kind, name, project, service, agent_name, status,
 		 start_ns, end_ns, error,
 		 provider, request_model, response_model, input_tokens, output_tokens,
 		 cache_read_tokens, cache_creation_tokens, reasoning_tokens,
 		 tool_name, tool_call_id, detail, cost_usd)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 			tool = *st.Tool
 		}
 		if _, err := ins.ExecContext(ctx,
-			st.ID, st.RunID, st.ParentID, string(st.Kind), st.Name, st.Service, st.AgentName, string(st.Status),
+			st.ID, st.RunID, st.ParentID, string(st.Kind), st.Name, st.Project, st.Service, st.AgentName, string(st.Status),
 			st.Start.UnixNano(), st.End.UnixNano(), st.Error,
 			llm.Provider, llm.RequestModel, llm.ResponseModel, llm.InputTokens, llm.OutputTokens,
 			llm.CacheReadTokens, llm.CacheCreationTokens, llm.ReasoningTokens,
@@ -81,12 +81,12 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 // aggregates structurally idempotent instead of bookkept.
 func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
 	var (
-		startNS, endNS               int64
-		inTok, outTok                int64
-		llmCalls, toolCalls          int64
-		hasError, hasRoot, partial   bool
-		service, agent, oerr, models string
-		cost                         sql.NullFloat64
+		startNS, endNS                        int64
+		inTok, outTok                         int64
+		llmCalls, toolCalls                   int64
+		hasError, hasRoot, partial            bool
+		service, agent, oerr, models, project string
+		cost                                  sql.NullFloat64
 	)
 	err := tx.QueryRowContext(ctx, `
 		SELECT min(start_ns), max(end_ns),
@@ -97,10 +97,11 @@ func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
 		       coalesce((SELECT agent_name FROM steps WHERE run_id = ?1 AND agent_name != '' LIMIT 1), ''),
 		       coalesce((SELECT error FROM steps WHERE run_id = ?1 AND error != '' ORDER BY start_ns LIMIT 1), ''),
 		       coalesce((SELECT group_concat(DISTINCT request_model) FROM steps WHERE run_id = ?1 AND request_model != ''), ''),
+		       coalesce((SELECT project FROM steps WHERE run_id = ?1 AND project != '' LIMIT 1), 'default'),
 		       sum(cost_usd),
 		       max(kind = 'llm' AND cost_usd IS NULL AND (input_tokens > 0 OR output_tokens > 0))
 		FROM steps WHERE run_id = ?1`, runID).
-		Scan(&startNS, &endNS, &inTok, &outTok, &llmCalls, &toolCalls, &hasError, &hasRoot, &service, &agent, &oerr, &models, &cost, &partial)
+		Scan(&startNS, &endNS, &inTok, &outTok, &llmCalls, &toolCalls, &hasError, &hasRoot, &service, &agent, &oerr, &models, &project, &cost, &partial)
 	if err != nil {
 		return err
 	}
@@ -114,18 +115,19 @@ func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO runs (id, service, agent_name, status, start_ns, end_ns,
+		INSERT INTO runs (id, project, service, agent_name, status, start_ns, end_ns,
 		                  input_tokens, output_tokens, llm_calls, tool_calls, models,
 		                  cost_usd, cost_partial, error)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
+		  project=excluded.project,
 		  service=excluded.service, agent_name=excluded.agent_name,
 		  status=excluded.status, start_ns=excluded.start_ns, end_ns=excluded.end_ns,
 		  input_tokens=excluded.input_tokens, output_tokens=excluded.output_tokens,
 		  llm_calls=excluded.llm_calls, tool_calls=excluded.tool_calls,
 		  models=excluded.models, cost_usd=excluded.cost_usd,
 		  cost_partial=excluded.cost_partial, error=excluded.error`,
-		runID, service, agent, string(status), startNS, endNS,
+		runID, project, service, agent, string(status), startNS, endNS,
 		inTok, outTok, llmCalls, toolCalls, models, cost, partial, oerr)
 	return err
 }
@@ -147,6 +149,7 @@ func floatPtr(f sql.NullFloat64) *float64 {
 
 // Filter narrows ListRuns. Zero values mean "no constraint".
 type Filter struct {
+	Project string    // exact match
 	Status  string    // exact match: running | ok | error
 	Service string    // prefix match (index-friendly)
 	Model   string    // substring match against the run's models list
@@ -159,6 +162,10 @@ type Filter struct {
 func (s *Store) ListRuns(ctx context.Context, f Filter, limit, offset int) ([]model.Run, error) {
 	where := " WHERE 1=1"
 	var args []any
+	if f.Project != "" {
+		where += " AND project = ?"
+		args = append(args, f.Project)
+	}
 	if f.Status != "" {
 		where += " AND status = ?"
 		args = append(args, f.Status)
@@ -182,7 +189,7 @@ func (s *Store) ListRuns(ctx context.Context, f Filter, limit, offset int) ([]mo
 	args = append(args, limit, offset)
 
 	rows, err := s.reader.QueryContext(ctx, `
-		SELECT id, service, agent_name, status, start_ns, end_ns,
+		SELECT id, project, service, agent_name, status, start_ns, end_ns,
 		       input_tokens, output_tokens, llm_calls, tool_calls, models,
 		       cost_usd, cost_partial, error
 		FROM runs`+where+` ORDER BY start_ns DESC LIMIT ? OFFSET ?`, args...)
@@ -197,7 +204,7 @@ func (s *Store) ListRuns(ctx context.Context, f Filter, limit, offset int) ([]mo
 		var status string
 		var startNS, endNS int64
 		var cost sql.NullFloat64
-		if err := rows.Scan(&r.ID, &r.Service, &r.AgentName, &status, &startNS, &endNS,
+		if err := rows.Scan(&r.ID, &r.Project, &r.Service, &r.AgentName, &status, &startNS, &endNS,
 			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models,
 			&cost, &r.CostPartial, &r.Error); err != nil {
 			return nil, err
@@ -227,11 +234,11 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 	var startNS, endNS int64
 	var cost sql.NullFloat64
 	err := s.reader.QueryRowContext(ctx, `
-		SELECT id, service, agent_name, status, start_ns, end_ns,
+		SELECT id, project, service, agent_name, status, start_ns, end_ns,
 		       input_tokens, output_tokens, llm_calls, tool_calls, models,
 		       cost_usd, cost_partial, error
 		FROM runs WHERE id = ?`, id).
-		Scan(&r.ID, &r.Service, &r.AgentName, &status, &startNS, &endNS,
+		Scan(&r.ID, &r.Project, &r.Service, &r.AgentName, &status, &startNS, &endNS,
 			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models,
 			&cost, &r.CostPartial, &r.Error)
 	if err != nil {

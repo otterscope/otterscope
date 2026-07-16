@@ -12,6 +12,7 @@ import (
 // runJSON is the wire shape of a run in the UI API.
 type runJSON struct {
 	ID           string   `json:"id"`
+	Project      string   `json:"project"`
 	Service      string   `json:"service"`
 	AgentName    string   `json:"agentName"`
 	Status       string   `json:"status"`
@@ -30,6 +31,7 @@ type runJSON struct {
 func toRunJSON(r model.Run) runJSON {
 	return runJSON{
 		ID:           r.ID,
+		Project:      r.Project,
 		Service:      r.Service,
 		AgentName:    r.AgentName,
 		Status:       string(r.Status),
@@ -140,6 +142,7 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 
 	q := r.URL.Query()
 	f := store.Filter{
+		Project: q.Get("project"),
 		Status:  q.Get("status"),
 		Service: q.Get("service"),
 		Model:   q.Get("model"),

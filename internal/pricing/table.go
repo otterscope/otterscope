@@ -8,9 +8,9 @@ package pricing
 // CacheWrite uses the provider's default (5-minute) tier where tiered.
 var defaultRates = map[string]Rate{
 	// Anthropic — platform.claude.com/docs/en/about-claude/pricing
-	"claude-fable-5":    {Input: 10, Output: 50, CacheRead: 1, CacheWrite: 12.50},
-	"claude-mythos-5":   {Input: 10, Output: 50, CacheRead: 1, CacheWrite: 12.50},
-	"claude-opus-4":     {Input: 5, Output: 25, CacheRead: 0.50, CacheWrite: 6.25}, // 4-5 through 4-8 priced identically
+	"claude-fable-5":  {Input: 10, Output: 50, CacheRead: 1, CacheWrite: 12.50},
+	"claude-mythos-5": {Input: 10, Output: 50, CacheRead: 1, CacheWrite: 12.50},
+	"claude-opus-4":   {Input: 5, Output: 25, CacheRead: 0.50, CacheWrite: 6.25}, // 4-5 through 4-8 priced identically
 	// Introductory pricing through 2026-08-31; standard becomes 3/15
 	// (cacheRead 0.30, cacheWrite 3.75) on 2026-09-01 — update then.
 	"claude-sonnet-5":   {Input: 2, Output: 10, CacheRead: 0.20, CacheWrite: 2.50},

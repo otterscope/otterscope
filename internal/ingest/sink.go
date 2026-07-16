@@ -29,14 +29,17 @@ func NewStoreSink(st *store.Store, prices *pricing.Table) *StoreSink {
 }
 
 // ConsumeTraces implements Sink.
-func (s *StoreSink) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
+func (s *StoreSink) ConsumeTraces(ctx context.Context, project string, td ptrace.Traces) error {
 	raw, err := compressTraces(td)
 	if err != nil {
 		return fmt.Errorf("compress raw batch: %w", err)
 	}
 	steps := Normalize(td)
 	priceSteps(steps, s.prices)
-	return s.st.IngestBatch(ctx, raw, steps)
+	for i := range steps {
+		steps[i].Project = project
+	}
+	return s.st.IngestBatch(ctx, project, raw, steps)
 }
 
 // priceSteps stamps CostUSD on llm steps with a known model. Unknown models
@@ -64,13 +67,16 @@ func priceSteps(steps []model.Step, prices *pricing.Table) {
 // and pricing table. UpsertSteps is idempotent, so re-running it is always
 // safe; run after a normalizer or pricing improvement to backfill.
 func Renormalize(ctx context.Context, st *store.Store, prices *pricing.Table) error {
-	return st.EachRawBatch(ctx, func(payload []byte) error {
+	return st.EachRawBatch(ctx, func(project string, payload []byte) error {
 		td, err := decompressTraces(payload)
 		if err != nil {
 			return fmt.Errorf("decode raw batch: %w", err)
 		}
 		steps := Normalize(td)
 		priceSteps(steps, prices)
+		for i := range steps {
+			steps[i].Project = project
+		}
 		return st.UpsertSteps(ctx, steps)
 	})
 }

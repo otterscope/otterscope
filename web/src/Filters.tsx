@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 export type FilterState = {
+  project: string;
   status: string;
   model: string;
   service: string;
@@ -10,6 +11,7 @@ export type FilterState = {
 export function filtersFromURL(): FilterState {
   const q = new URLSearchParams(window.location.search);
   return {
+    project: q.get("project") ?? "",
     status: q.get("status") ?? "",
     model: q.get("model") ?? "",
     service: q.get("service") ?? "",
@@ -20,6 +22,7 @@ export function filtersFromURL(): FilterState {
 export function filtersToQuery(f: FilterState): string {
   const q = new URLSearchParams();
   q.set("limit", "100");
+  if (f.project) q.set("project", f.project);
   if (f.status) q.set("status", f.status);
   if (f.model) q.set("model", f.model);
   if (f.service) q.set("service", f.service);
@@ -74,6 +77,11 @@ export default function Filters({
         placeholder="model…"
         value={f.model}
         onChange={(e) => update({ model: e.target.value })}
+      />
+      <input
+        placeholder="project…"
+        value={f.project}
+        onChange={(e) => update({ project: e.target.value })}
       />
       <input
         placeholder="service…"
