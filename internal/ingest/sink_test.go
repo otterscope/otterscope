@@ -51,7 +51,7 @@ func TestStoreSinkPersistsAndRenormalizes(t *testing.T) {
 		t.Fatalf("GetRun after delete: %v", err)
 	}
 
-	if err := Renormalize(ctx, st, pricing.Default()); err != nil {
+	if _, err := Renormalize(ctx, st, pricing.Default()); err != nil {
 		t.Fatalf("Renormalize: %v", err)
 	}
 	run, steps, err = st.GetRun(ctx, runID)
@@ -66,7 +66,7 @@ func TestStoreSinkPersistsAndRenormalizes(t *testing.T) {
 	}
 
 	// Renormalizing again must not duplicate anything.
-	if err := Renormalize(ctx, st, pricing.Default()); err != nil {
+	if _, err := Renormalize(ctx, st, pricing.Default()); err != nil {
 		t.Fatalf("second Renormalize: %v", err)
 	}
 	_, steps, err = st.GetRun(ctx, runID)
