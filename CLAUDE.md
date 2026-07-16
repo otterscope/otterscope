@@ -27,7 +27,8 @@ Lightweight, self-hosted observability + evals for AI agents. One Go static bina
 - Run locally: `go run ./cmd/otterscope serve` then POST OTLP to `:4318`, UI on `:8317`.
 - Test fixtures for ingest live in `internal/ingest/testdata/` as captured OTLP JSON payloads from real frameworks — extend these whenever a new framework/dialect quirk is found.
 - The store runs on a SINGLE SQLite connection: never hold a rows cursor open while issuing another query/write on the same call path — it self-deadlocks. Drain and close cursors first (see `EachRawBatch`).
-- When verifying, never pipe `go test`/`go build` through `tail`/`grep` without `set -o pipefail` — the pipe masks failures. Always run tests with an explicit `-timeout` well under 10m so hangs fail fast.
+- Any command whose exit code gates a decision (tests, builds, `gh pr checks`, `gh run watch`) must not be piped through `tail`/`grep`/etc. without `set -o pipefail` — a pipe masks the failure and the gate silently passes (this has bitten twice: PR #21 locally, PR #30 at merge). Always run tests with an explicit `-timeout` well under 10m so hangs fail fast.
+- CI check failures aren't always code failures — module-proxy flakes happen (PR #30). Re-run the failed job (`gh run rerun <id> --failed`) before debugging, but never merge on a red check regardless of suspected cause.
 
 ## Workflow
 
