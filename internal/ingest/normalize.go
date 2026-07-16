@@ -22,7 +22,15 @@ func Normalize(td ptrace.Traces) []model.Step {
 		for j := 0; j < sss.Len(); j++ {
 			spans := sss.At(j).Spans()
 			for k := 0; k < spans.Len(); k++ {
-				steps = append(steps, normalizeSpan(spans.At(k), service))
+				sp := spans.At(k)
+				// Drop spans with an all-zero trace or span ID: buggy SDKs
+				// emit them, and globally they would collapse unrelated runs
+				// together (audit #49). A zero start timestamp would also
+				// poison duration/percentile stats (audit #50).
+				if sp.TraceID().IsEmpty() || sp.SpanID().IsEmpty() || sp.StartTimestamp() == 0 {
+					continue
+				}
+				steps = append(steps, normalizeSpan(sp, service))
 			}
 		}
 	}

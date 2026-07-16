@@ -47,8 +47,13 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 	}
 	defer ins.Close()
 
-	runIDs := make(map[string]bool)
+	// Runs are keyed by (project, run_id) — re-derive each touched pair.
+	type runKey struct{ project, runID string }
+	runKeys := make(map[runKey]bool)
 	for _, st := range steps {
+		if st.Project == "" {
+			st.Project = "default"
+		}
 		var llm model.LLMCall
 		if st.LLM != nil {
 			llm = *st.LLM
@@ -66,42 +71,43 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 		); err != nil {
 			return fmt.Errorf("insert step %s: %w", st.ID, err)
 		}
-		runIDs[st.RunID] = true
+		runKeys[runKey{st.Project, st.RunID}] = true
 	}
 
-	for runID := range runIDs {
-		if err := rederiveRun(ctx, tx, runID); err != nil {
-			return fmt.Errorf("rederive run %s: %w", runID, err)
+	for k := range runKeys {
+		if err := rederiveRun(ctx, tx, k.project, k.runID); err != nil {
+			return fmt.Errorf("rederive run %s/%s: %w", k.project, k.runID, err)
 		}
 	}
 	return nil
 }
 
-// rederiveRun recomputes a run row entirely from its steps, making run
-// aggregates structurally idempotent instead of bookkept.
-func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
+// rederiveRun recomputes a run row entirely from its steps within one
+// project, making run aggregates structurally idempotent instead of
+// bookkept. Scoping by project prevents one project's steps from being
+// merged into another's run (audit #49).
+func rederiveRun(ctx context.Context, tx *sql.Tx, project, runID string) error {
 	var (
-		startNS, endNS                        int64
-		inTok, outTok                         int64
-		llmCalls, toolCalls                   int64
-		hasError, hasRoot, partial            bool
-		service, agent, oerr, models, project string
-		cost                                  sql.NullFloat64
+		startNS, endNS             int64
+		inTok, outTok              int64
+		llmCalls, toolCalls        int64
+		hasError, hasRoot, partial bool
+		service, agent, oerr, models string
+		cost                       sql.NullFloat64
 	)
 	err := tx.QueryRowContext(ctx, `
 		SELECT min(start_ns), max(end_ns),
 		       sum(input_tokens), sum(output_tokens),
 		       sum(kind = 'llm'), sum(kind = 'tool'),
 		       max(error != ''), max(parent_id = ''),
-		       coalesce((SELECT service FROM steps WHERE run_id = ?1 AND service != '' LIMIT 1), ''),
-		       coalesce((SELECT agent_name FROM steps WHERE run_id = ?1 AND agent_name != '' LIMIT 1), ''),
-		       coalesce((SELECT error FROM steps WHERE run_id = ?1 AND error != '' ORDER BY start_ns LIMIT 1), ''),
-		       coalesce((SELECT group_concat(DISTINCT request_model) FROM steps WHERE run_id = ?1 AND request_model != ''), ''),
-		       coalesce((SELECT project FROM steps WHERE run_id = ?1 AND project != '' LIMIT 1), 'default'),
+		       coalesce((SELECT service FROM steps WHERE project = ?1 AND run_id = ?2 AND service != '' LIMIT 1), ''),
+		       coalesce((SELECT agent_name FROM steps WHERE project = ?1 AND run_id = ?2 AND agent_name != '' LIMIT 1), ''),
+		       coalesce((SELECT error FROM steps WHERE project = ?1 AND run_id = ?2 AND error != '' ORDER BY start_ns LIMIT 1), ''),
+		       coalesce((SELECT group_concat(DISTINCT request_model) FROM steps WHERE project = ?1 AND run_id = ?2 AND request_model != ''), ''),
 		       sum(cost_usd),
 		       max(kind = 'llm' AND cost_usd IS NULL AND (input_tokens > 0 OR output_tokens > 0))
-		FROM steps WHERE run_id = ?1`, runID).
-		Scan(&startNS, &endNS, &inTok, &outTok, &llmCalls, &toolCalls, &hasError, &hasRoot, &service, &agent, &oerr, &models, &project, &cost, &partial)
+		FROM steps WHERE project = ?1 AND run_id = ?2`, project, runID).
+		Scan(&startNS, &endNS, &inTok, &outTok, &llmCalls, &toolCalls, &hasError, &hasRoot, &service, &agent, &oerr, &models, &cost, &partial)
 	if err != nil {
 		return err
 	}
@@ -115,19 +121,18 @@ func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO runs (id, project, service, agent_name, status, start_ns, end_ns,
+		INSERT INTO runs (project, id, service, agent_name, status, start_ns, end_ns,
 		                  input_tokens, output_tokens, llm_calls, tool_calls, models,
 		                  cost_usd, cost_partial, error)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(id) DO UPDATE SET
-		  project=excluded.project,
+		ON CONFLICT(project, id) DO UPDATE SET
 		  service=excluded.service, agent_name=excluded.agent_name,
 		  status=excluded.status, start_ns=excluded.start_ns, end_ns=excluded.end_ns,
 		  input_tokens=excluded.input_tokens, output_tokens=excluded.output_tokens,
 		  llm_calls=excluded.llm_calls, tool_calls=excluded.tool_calls,
 		  models=excluded.models, cost_usd=excluded.cost_usd,
 		  cost_partial=excluded.cost_partial, error=excluded.error`,
-		runID, project, service, agent, string(status), startNS, endNS,
+		project, runID, service, agent, string(status), startNS, endNS,
 		inTok, outTok, llmCalls, toolCalls, models, cost, partial, oerr)
 	return err
 }
@@ -208,11 +213,13 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 	var status string
 	var startNS, endNS int64
 	var cost sql.NullFloat64
+	// Trace ID can now exist in more than one project (forging can't
+	// overwrite, only coexist); newest wins for the bare-ID lookup.
 	err := s.reader.QueryRowContext(ctx, `
 		SELECT id, project, service, agent_name, status, start_ns, end_ns,
 		       input_tokens, output_tokens, llm_calls, tool_calls, models,
 		       cost_usd, cost_partial, error
-		FROM runs WHERE id = ?`, id).
+		FROM runs WHERE id = ? ORDER BY start_ns DESC LIMIT 1`, id).
 		Scan(&r.ID, &r.Project, &r.Service, &r.AgentName, &status, &startNS, &endNS,
 			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models,
 			&cost, &r.CostPartial, &r.Error)
@@ -230,7 +237,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 		       provider, request_model, response_model, input_tokens, output_tokens,
 		       cache_read_tokens, cache_creation_tokens, reasoning_tokens,
 		       tool_name, tool_call_id, detail, cost_usd
-		FROM steps WHERE run_id = ? ORDER BY start_ns`, id)
+		FROM steps WHERE project = ? AND run_id = ? ORDER BY start_ns`, r.Project, id)
 	if err != nil {
 		return model.Run{}, nil, err
 	}
