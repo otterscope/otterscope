@@ -5,14 +5,10 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
-	"log/slog"
-	"time"
-
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	"io"
 
-	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/model"
 	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/store"
@@ -24,13 +20,13 @@ import (
 type StoreSink struct {
 	st     *store.Store
 	prices *pricing.Table
-	judge  evals.Endpoint
+	eval   *Evaluator
 }
 
 // NewStoreSink returns a Sink writing to st, pricing calls via prices and
-// judging with the server-configured endpoint.
-func NewStoreSink(st *store.Store, prices *pricing.Table, judge evals.Endpoint) *StoreSink {
-	return &StoreSink{st: st, prices: prices, judge: judge}
+// scheduling assertion evaluation on eval (may be nil to disable).
+func NewStoreSink(st *store.Store, prices *pricing.Table, eval *Evaluator) *StoreSink {
+	return &StoreSink{st: st, prices: prices, eval: eval}
 }
 
 // ConsumeTraces implements Sink.
@@ -48,23 +44,17 @@ func (s *StoreSink) ConsumeTraces(ctx context.Context, project string, td ptrace
 		return err
 	}
 
-	seen := map[string]bool{}
-	var runIDs []string
-	for _, st := range steps {
-		if !seen[st.RunID] {
-			seen[st.RunID] = true
-			runIDs = append(runIDs, st.RunID)
+	if s.eval != nil {
+		seen := map[string]bool{}
+		var runIDs []string
+		for _, st := range steps {
+			if !seen[st.RunID] {
+				seen[st.RunID] = true
+				runIDs = append(runIDs, st.RunID)
+			}
 		}
+		s.eval.Enqueue(runIDs)
 	}
-	// Detached: judge assertions make network calls that must never hold up
-	// the exporter's OTLP request.
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		if err := EvaluateRuns(ctx, s.st, s.judge, runIDs, false); err != nil {
-			slog.Error("assertion evaluation failed", "err", err)
-		}
-	}()
 	return nil
 }
 

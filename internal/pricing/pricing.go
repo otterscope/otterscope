@@ -74,9 +74,14 @@ func (t *Table) Cost(model string, in, out, cacheRead, cacheWrite int64) (float6
 	if cwRate == 0 {
 		cwRate = r.Input
 	}
+	// The OTel GenAI convention treats cache tokens as a subset of
+	// input_tokens, so we bill the remainder at the plain rate. But some
+	// emitters report input_tokens already net of cache tokens; detect that
+	// (remainder would go negative) and bill cache tokens additively instead
+	// of clamping to zero, which would undercount cost.
 	plain := in - cacheRead - cacheWrite
 	if plain < 0 {
-		plain = 0
+		plain = in
 	}
 	usd := (float64(plain)*r.Input +
 		float64(cacheRead)*crRate +

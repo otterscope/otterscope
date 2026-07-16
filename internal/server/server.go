@@ -25,6 +25,7 @@ type Server struct {
 	st      *store.Store
 	prices  *pricing.Table
 	judge   evals.Endpoint
+	eval    *ingest.Evaluator
 	version string
 }
 
@@ -34,8 +35,13 @@ func New(st *store.Store, prices *pricing.Table, judge evals.Endpoint, version s
 	return &Server{st: st, prices: prices, judge: judge, version: version}
 }
 
-// Run serves until ctx is canceled, then shuts both listeners down.
+// Run serves until ctx is canceled, then shuts both listeners down and
+// drains the evaluator (before the caller closes the store).
 func (s *Server) Run(ctx context.Context, uiAddr, otlpAddr string) error {
+	s.eval = ingest.NewEvaluator(s.st, s.judge)
+	s.eval.Start()
+	defer s.eval.Stop() // drains queued evaluation before Run returns
+
 	ui := &http.Server{Addr: uiAddr, Handler: s.uiHandler()}
 	otlp := &http.Server{Addr: otlpAddr, Handler: s.otlpHandler()}
 
@@ -100,7 +106,7 @@ func uiRoot() http.Handler {
 }
 
 func (s *Server) otlpHandler() http.Handler {
-	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices, s.judge), s.st.ProjectForKey)
+	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices, s.eval), s.st.ProjectForKey)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

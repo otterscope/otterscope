@@ -88,12 +88,12 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 // merged into another's run (audit #49).
 func rederiveRun(ctx context.Context, tx *sql.Tx, project, runID string) error {
 	var (
-		startNS, endNS             int64
-		inTok, outTok              int64
-		llmCalls, toolCalls        int64
-		hasError, hasRoot, partial bool
+		startNS, endNS               int64
+		inTok, outTok                int64
+		llmCalls, toolCalls          int64
+		hasError, hasRoot, partial   bool
 		service, agent, oerr, models string
-		cost                       sql.NullFloat64
+		cost                         sql.NullFloat64
 	)
 	err := tx.QueryRowContext(ctx, `
 		SELECT min(start_ns), max(end_ns),
