@@ -29,6 +29,7 @@ type Server struct {
 	judge         evals.Endpoint
 	eval          *ingest.Evaluator
 	alertInterval time.Duration
+	hub           *hub
 	version       string
 }
 
@@ -36,7 +37,7 @@ type Server struct {
 // with the server-configured endpoint, and evaluating alerts every
 // alertInterval (0 disables the watcher).
 func New(st *store.Store, prices *pricing.Table, judge evals.Endpoint, alertInterval time.Duration, version string) *Server {
-	return &Server{st: st, prices: prices, judge: judge, alertInterval: alertInterval, version: version}
+	return &Server{st: st, prices: prices, judge: judge, alertInterval: alertInterval, hub: newHub(), version: version}
 }
 
 // Run serves until ctx is canceled, then shuts both listeners down and
@@ -87,6 +88,7 @@ func (s *Server) uiHandler() http.Handler {
 	mux.HandleFunc("POST /api/assertions", s.handleCreateAssertion)
 	mux.HandleFunc("DELETE /api/assertions/{id}", s.handleDeleteAssertion)
 	mux.HandleFunc("POST /api/assertions/evaluate", s.handleEvaluate)
+	mux.HandleFunc("GET /api/stream", s.handleStream)
 	mux.HandleFunc("GET /api/alerts", s.handleListAlerts)
 	mux.HandleFunc("POST /api/alerts", s.handleCreateAlert)
 	mux.HandleFunc("DELETE /api/alerts/{id}", s.handleDeleteAlert)
@@ -120,7 +122,7 @@ func uiRoot() http.Handler {
 }
 
 func (s *Server) otlpHandler() http.Handler {
-	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices, s.eval), s.st.ProjectForKey)
+	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices, s.eval, s.hub.broadcast), s.st.ProjectForKey)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

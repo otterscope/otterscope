@@ -21,12 +21,14 @@ type StoreSink struct {
 	st     *store.Store
 	prices *pricing.Table
 	eval   *Evaluator
+	notify func() // called after a batch persists (may be nil)
 }
 
-// NewStoreSink returns a Sink writing to st, pricing calls via prices and
-// scheduling assertion evaluation on eval (may be nil to disable).
-func NewStoreSink(st *store.Store, prices *pricing.Table, eval *Evaluator) *StoreSink {
-	return &StoreSink{st: st, prices: prices, eval: eval}
+// NewStoreSink returns a Sink writing to st, pricing calls via prices,
+// scheduling assertion evaluation on eval (may be nil), and calling notify
+// after each batch persists (may be nil) — used to push live updates.
+func NewStoreSink(st *store.Store, prices *pricing.Table, eval *Evaluator, notify func()) *StoreSink {
+	return &StoreSink{st: st, prices: prices, eval: eval, notify: notify}
 }
 
 // ConsumeTraces implements Sink.
@@ -44,6 +46,9 @@ func (s *StoreSink) ConsumeTraces(ctx context.Context, project string, td ptrace
 		return err
 	}
 
+	if s.notify != nil {
+		s.notify()
+	}
 	if s.eval != nil {
 		seen := map[string]bool{}
 		var runIDs []string
