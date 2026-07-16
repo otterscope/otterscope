@@ -37,6 +37,7 @@ type Run struct {
 	OutputTokens int64
 	LLMCalls     int64
 	ToolCalls    int64
+	Models       string // distinct request models, comma-joined
 	Error        string // first step error encountered
 }
 

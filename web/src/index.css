@@ -41,14 +41,72 @@ header h1 {
   font-size: 0.9rem;
 }
 
-.status {
-  margin-top: 2rem;
-}
-
-.status strong {
-  color: var(--accent);
-}
-
 .hint {
   color: var(--muted);
+}
+
+.empty {
+  margin-top: 3rem;
+  text-align: center;
+}
+
+.empty code {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  background: #1a212b;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+table.runs {
+  width: 100%;
+  margin-top: 1.5rem;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+table.runs th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid #1f2733;
+}
+
+table.runs td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #161d26;
+  white-space: nowrap;
+}
+
+table.runs .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent {
+  color: var(--muted);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.badge.ok {
+  background: #14311c;
+  color: #7fd88f;
+}
+
+.badge.error {
+  background: #3a1518;
+  color: #ff8e8e;
+}
+
+.badge.running {
+  background: #102a3d;
+  color: var(--accent);
 }
