@@ -29,7 +29,7 @@ func TestStoreSinkPersistsAndRenormalizes(t *testing.T) {
 	defer st.Close()
 
 	sink := NewStoreSink(st, pricing.Default())
-	if err := sink.ConsumeTraces(ctx, fixtureTraces(t).Traces()); err != nil {
+	if err := sink.ConsumeTraces(ctx, "default", fixtureTraces(t).Traces()); err != nil {
 		t.Fatalf("ConsumeTraces: %v", err)
 	}
 

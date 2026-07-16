@@ -18,15 +18,28 @@ import (
 
 const fixtureSpanCount = 3
 
-type countSink struct {
-	spans atomic.Int64
-	err   error
+// openResolver mimics an instance with only the keyless default project.
+func openResolver(_ context.Context, key string) (string, bool) {
+	if key == "" {
+		return "default", true
+	}
+	if key == "valid-key" {
+		return "prod", true
+	}
+	return "", false
 }
 
-func (s *countSink) ConsumeTraces(_ context.Context, td ptrace.Traces) error {
+type countSink struct {
+	spans       atomic.Int64
+	lastProject atomic.Pointer[string]
+	err         error
+}
+
+func (s *countSink) ConsumeTraces(_ context.Context, project string, td ptrace.Traces) error {
 	if s.err != nil {
 		return s.err
 	}
+	s.lastProject.Store(&project)
 	s.spans.Add(int64(td.SpanCount()))
 	return nil
 }
@@ -61,7 +74,7 @@ func post(t *testing.T, h http.Handler, contentType string, body []byte, gzipped
 
 func TestJSONIngest(t *testing.T) {
 	sink := &countSink{}
-	w := post(t, NewHandler(sink), ctJSON, fixture(t, "pydantic_ai_chat.json"), false)
+	w := post(t, NewHandler(sink, openResolver), ctJSON, fixture(t, "pydantic_ai_chat.json"), false)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
@@ -80,7 +93,7 @@ func TestJSONIngest(t *testing.T) {
 
 func TestProtoIngest(t *testing.T) {
 	sink := &countSink{}
-	w := post(t, NewHandler(sink), ctProto, fixture(t, "pydantic_ai_chat.pb"), false)
+	w := post(t, NewHandler(sink, openResolver), ctProto, fixture(t, "pydantic_ai_chat.pb"), false)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
@@ -96,7 +109,7 @@ func TestProtoIngest(t *testing.T) {
 
 func TestGzipJSONIngest(t *testing.T) {
 	sink := &countSink{}
-	w := post(t, NewHandler(sink), ctJSON, fixture(t, "pydantic_ai_chat.json"), true)
+	w := post(t, NewHandler(sink, openResolver), ctJSON, fixture(t, "pydantic_ai_chat.json"), true)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
@@ -108,7 +121,7 @@ func TestGzipJSONIngest(t *testing.T) {
 
 func TestMalformedPayload(t *testing.T) {
 	for _, ct := range []string{ctJSON, ctProto} {
-		w := post(t, NewHandler(&countSink{}), ct, []byte(`{"resourceSpans": [{]`), false)
+		w := post(t, NewHandler(&countSink{}, openResolver), ct, []byte(`{"resourceSpans": [{]`), false)
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("%s: status = %d, want 400", ct, w.Code)
 		}
@@ -120,14 +133,14 @@ func TestBadGzip(t *testing.T) {
 	req.Header.Set("Content-Type", ctJSON)
 	req.Header.Set("Content-Encoding", "gzip")
 	w := httptest.NewRecorder()
-	NewHandler(&countSink{}).ServeHTTP(w, req)
+	NewHandler(&countSink{}, openResolver).ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
 	}
 }
 
 func TestUnsupportedContentType(t *testing.T) {
-	w := post(t, NewHandler(&countSink{}), "text/plain", []byte("hi"), false)
+	w := post(t, NewHandler(&countSink{}, openResolver), "text/plain", []byte("hi"), false)
 	if w.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("status = %d, want 415", w.Code)
 	}
@@ -135,7 +148,7 @@ func TestUnsupportedContentType(t *testing.T) {
 
 func TestSinkErrorIs500(t *testing.T) {
 	sink := &countSink{err: errors.New("disk full")}
-	w := post(t, NewHandler(sink), ctJSON, fixture(t, "pydantic_ai_chat.json"), false)
+	w := post(t, NewHandler(sink, openResolver), ctJSON, fixture(t, "pydantic_ai_chat.json"), false)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500", w.Code)
 	}
@@ -176,5 +189,42 @@ func TestFixtureRoundTrip(t *testing.T) {
 	}
 	if got, want := protoReq.Traces().SpanCount(), jsonReq.Traces().SpanCount(); got != want {
 		t.Fatalf("proto fixture has %d spans, JSON fixture has %d", got, want)
+	}
+}
+
+func TestIngestAuth(t *testing.T) {
+	sink := &countSink{}
+	h := NewHandler(sink, openResolver)
+
+	// Valid key routes to its project.
+	req := httptest.NewRequest(http.MethodPost, "/v1/traces", bytes.NewReader(fixture(t, "pydantic_ai_chat.json")))
+	req.Header.Set("Content-Type", ctJSON)
+	req.Header.Set("Authorization", "Bearer valid-key")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("valid key: status %d", w.Code)
+	}
+	if p := sink.lastProject.Load(); p == nil || *p != "prod" {
+		t.Fatalf("project = %v, want prod", p)
+	}
+
+	// Unknown key is rejected before decoding.
+	req = httptest.NewRequest(http.MethodPost, "/v1/traces", bytes.NewReader(fixture(t, "pydantic_ai_chat.json")))
+	req.Header.Set("Content-Type", ctJSON)
+	req.Header.Set("Authorization", "Bearer wrong")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("unknown key: status %d, want 401", w.Code)
+	}
+
+	// No header lands in default.
+	w = post(t, h, ctJSON, fixture(t, "pydantic_ai_chat.json"), false)
+	if w.Code != http.StatusOK {
+		t.Fatalf("keyless: status %d", w.Code)
+	}
+	if p := sink.lastProject.Load(); p == nil || *p != "default" {
+		t.Fatalf("keyless project = %v, want default", p)
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -30,24 +31,37 @@ const (
 	ctJSON  = "application/json"
 )
 
-// Sink receives every decoded trace batch. Implementations must be safe for
+// Sink receives every decoded trace batch, tagged with the project the
+// caller's ingest key resolved to. Implementations must be safe for
 // concurrent use.
 type Sink interface {
-	ConsumeTraces(ctx context.Context, td ptrace.Traces) error
+	ConsumeTraces(ctx context.Context, project string, td ptrace.Traces) error
 }
 
+// KeyResolver maps a Bearer ingest key ("" = none supplied) to a project
+// name; ok=false rejects the request.
+type KeyResolver func(ctx context.Context, key string) (project string, ok bool)
+
 // NewHandler returns the OTLP/HTTP handler, routing POST /v1/traces to sink.
-func NewHandler(sink Sink) http.Handler {
+func NewHandler(sink Sink, resolve KeyResolver) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("POST /v1/traces", &tracesHandler{sink: sink})
+	mux.Handle("POST /v1/traces", &tracesHandler{sink: sink, resolve: resolve})
 	return mux
 }
 
 type tracesHandler struct {
-	sink Sink
+	sink    Sink
+	resolve KeyResolver
 }
 
 func (h *tracesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	key := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	project, ok := h.resolve(r.Context(), key)
+	if !ok {
+		http.Error(w, "unknown ingest key", http.StatusUnauthorized)
+		return
+	}
+
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || (contentType != ctProto && contentType != ctJSON) {
 		http.Error(w, "unsupported content type: use application/x-protobuf or application/json", http.StatusUnsupportedMediaType)
@@ -76,7 +90,7 @@ func (h *tracesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.sink.ConsumeTraces(r.Context(), req.Traces()); err != nil {
+	if err := h.sink.ConsumeTraces(r.Context(), project, req.Traces()); err != nil {
 		slog.Error("ingest: sink failed", "err", err)
 		http.Error(w, "failed to store traces", http.StatusInternalServerError)
 		return

@@ -92,7 +92,7 @@ func uiRoot() http.Handler {
 }
 
 func (s *Server) otlpHandler() http.Handler {
-	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices))
+	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices), s.st.ProjectForKey)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

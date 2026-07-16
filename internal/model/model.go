@@ -28,6 +28,7 @@ const (
 // fields are derived from the run's steps at write time.
 type Run struct {
 	ID           string // trace ID, hex
+	Project      string
 	Service      string // resource service.name
 	AgentName    string
 	Status       Status
@@ -46,6 +47,7 @@ type Run struct {
 // Step is one operation within a run — a span, in OTel terms.
 type Step struct {
 	ID        string // span ID, hex
+	Project   string
 	RunID     string // trace ID, hex
 	ParentID  string // parent span ID, hex; "" for the root step
 	Kind      StepKind
