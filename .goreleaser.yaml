@@ -4,6 +4,10 @@ version: 2
 
 project_name: otterscope
 
+before:
+  hooks:
+    - sh -c "cd web && npm ci && npm run build"
+
 builds:
   - main: ./cmd/otterscope
     env:

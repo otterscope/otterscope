@@ -7,12 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/otterscope/otterscope/internal/ingest"
 	"github.com/otterscope/otterscope/internal/store"
+	"github.com/otterscope/otterscope/web"
 )
 
 // Server hosts the UI/API and the OTLP receiver.
@@ -56,11 +59,32 @@ func (s *Server) uiHandler() http.Handler {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 	})
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(placeholderHTML))
-	})
+	mux.Handle("GET /", uiRoot())
 	return mux
+}
+
+// uiRoot serves the embedded frontend with SPA fallback, or the placeholder
+// page when the binary was built without `npm run build`.
+func uiRoot() http.Handler {
+	fsys, ok := web.Dist()
+	if !ok {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write([]byte(placeholderHTML))
+		})
+	}
+	fileServer := http.FileServerFS(fsys)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path != "" {
+			if _, err := fs.Stat(fsys, path); err == nil {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+		}
+		// Unknown paths get index.html — client-side routing owns them.
+		http.ServeFileFS(w, r, fsys, "index.html")
+	})
 }
 
 func (s *Server) otlpHandler() http.Handler {

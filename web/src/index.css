@@ -1,0 +1,54 @@
+:root {
+  color-scheme: dark;
+  --bg: #0f1419;
+  --fg: #e6e1cf;
+  --muted: #8a919c;
+  --accent: #59c2ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, sans-serif;
+}
+
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  border-bottom: 1px solid #1f2733;
+  padding-bottom: 1rem;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.tagline {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.status {
+  margin-top: 2rem;
+}
+
+.status strong {
+  color: var(--accent);
+}
+
+.hint {
+  color: var(--muted);
+}

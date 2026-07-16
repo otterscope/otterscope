@@ -7,9 +7,11 @@
 *.db-wal
 *.db-shm
 
-# frontend
+# frontend — dist is embedded via go:embed, so .gitkeep must exist for
+# `go build ./...` to compile without a prior frontend build
 web/node_modules/
-web/dist/
+web/dist/*
+!web/dist/.gitkeep
 
 # editor/os
 .idea/
