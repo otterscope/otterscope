@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/alerts"
 	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/ingest"
 	"github.com/otterscope/otterscope/internal/model"
@@ -262,6 +263,56 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		stats.AssertionRates = []store.AssertionRate{}
 	}
 	writeJSON(w, http.StatusOK, stats)
+}
+
+// handleListAlerts serves GET /api/alerts?project=.
+func (s *Server) handleListAlerts(w http.ResponseWriter, r *http.Request) {
+	out, err := s.st.ListAlerts(r.Context(), r.URL.Query().Get("project"))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	if out == nil {
+		out = []store.Rule{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"alerts": out})
+}
+
+// handleCreateAlert serves POST /api/alerts.
+func (s *Server) handleCreateAlert(w http.ResponseWriter, r *http.Request) {
+	var rule store.Rule
+	if err := json.NewDecoder(r.Body).Decode(&rule); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad JSON"})
+		return
+	}
+	rule.Enabled = true
+	if rule.WindowSecs == 0 {
+		rule.WindowSecs = 3600
+	}
+	if err := alerts.Validate(rule); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	created, err := s.st.CreateAlert(r.Context(), rule)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, created)
+}
+
+// handleDeleteAlert serves DELETE /api/alerts/{id}.
+func (s *Server) handleDeleteAlert(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad id"})
+		return
+	}
+	if err := s.st.DeleteAlert(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // queryInt parses an integer query param with default and clamping.
