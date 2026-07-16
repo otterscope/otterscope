@@ -16,6 +16,7 @@ import (
 	"github.com/otterscope/otterscope/internal/alerts"
 	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/ingest"
+	"github.com/otterscope/otterscope/internal/mcp"
 	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/store"
 	"github.com/otterscope/otterscope/web"
@@ -89,6 +90,7 @@ func (s *Server) uiHandler() http.Handler {
 	mux.HandleFunc("GET /api/alerts", s.handleListAlerts)
 	mux.HandleFunc("POST /api/alerts", s.handleCreateAlert)
 	mux.HandleFunc("DELETE /api/alerts/{id}", s.handleDeleteAlert)
+	mux.Handle("POST /mcp", mcp.NewHandler(s.st, s.version))
 	mux.Handle("GET /", uiRoot())
 	return mux
 }
