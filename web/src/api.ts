@@ -47,7 +47,19 @@ export type Step = {
   };
 };
 
-export type RunDetail = { run: Run; steps: Step[] };
+export type AssertionResult = {
+  assertionId: number;
+  name: string;
+  type: string;
+  pass: boolean;
+  detail: string;
+};
+
+export type RunDetail = {
+  run: Run;
+  steps: Step[];
+  assertionResults?: AssertionResult[];
+};
 
 export function fmtDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;

@@ -293,3 +293,26 @@ a {
 .filters select:focus {
   outline: 1px solid var(--accent);
 }
+
+.asserts {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.assert {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.assert.pass {
+  background: #14311c;
+  color: #7fd88f;
+}
+
+.assert.fail {
+  background: #3a1518;
+  color: #ff8e8e;
+}

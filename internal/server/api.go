@@ -1,10 +1,13 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/evals"
+	"github.com/otterscope/otterscope/internal/ingest"
 	"github.com/otterscope/otterscope/internal/model"
 	"github.com/otterscope/otterscope/internal/store"
 )
@@ -132,7 +135,80 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, sj)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"run": toRunJSON(run), "steps": out})
+	results, err := s.st.ResultsForRun(r.Context(), run.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"run": toRunJSON(run), "steps": out, "assertionResults": results,
+	})
+}
+
+// handleListAssertions serves GET /api/assertions?project=.
+func (s *Server) handleListAssertions(w http.ResponseWriter, r *http.Request) {
+	out, err := s.st.ListAssertions(r.Context(), r.URL.Query().Get("project"))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	if out == nil {
+		out = []evals.Assertion{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"assertions": out})
+}
+
+// handleCreateAssertion serves POST /api/assertions.
+func (s *Server) handleCreateAssertion(w http.ResponseWriter, r *http.Request) {
+	var a evals.Assertion
+	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad JSON"})
+		return
+	}
+	a.Enabled = true
+	if a.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+	if err := evals.Validate(a); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	created, err := s.st.CreateAssertion(r.Context(), a)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, created)
+}
+
+// handleDeleteAssertion serves DELETE /api/assertions/{id}.
+func (s *Server) handleDeleteAssertion(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad id"})
+		return
+	}
+	if err := s.st.DeleteAssertion(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleEvaluate serves POST /api/assertions/evaluate?project= — on-demand
+// backfill over all completed runs.
+func (s *Server) handleEvaluate(w http.ResponseWriter, r *http.Request) {
+	project := r.URL.Query().Get("project")
+	if project == "" {
+		project = "default"
+	}
+	n, err := ingest.EvaluateProject(r.Context(), s.st, project)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"runsEvaluated": n})
 }
 
 // handleListRuns serves GET /api/runs?limit=&offset=.

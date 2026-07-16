@@ -63,6 +63,10 @@ func (s *Server) uiHandler() http.Handler {
 	})
 	mux.HandleFunc("GET /api/runs", s.handleListRuns)
 	mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
+	mux.HandleFunc("GET /api/assertions", s.handleListAssertions)
+	mux.HandleFunc("POST /api/assertions", s.handleCreateAssertion)
+	mux.HandleFunc("DELETE /api/assertions/{id}", s.handleDeleteAssertion)
+	mux.HandleFunc("POST /api/assertions/evaluate", s.handleEvaluate)
 	mux.Handle("GET /", uiRoot())
 	return mux
 }
