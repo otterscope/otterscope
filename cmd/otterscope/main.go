@@ -39,6 +39,11 @@ func main() {
 			slog.Error("fatal", "err", err)
 			os.Exit(1)
 		}
+	case "backup":
+		if err := backupCmd(os.Args[2:]); err != nil {
+			slog.Error("fatal", "err", err)
+			os.Exit(1)
+		}
 	case "sample":
 		if err := sampleCmd(os.Args[2:]); err != nil {
 			slog.Error("fatal", "err", err)
@@ -65,6 +70,7 @@ commands:
   project add <name>      create a project and print its ingest key
   project list            list projects and their ingest keys
   sample                  seed demo data (services, runs, assertions)
+  backup -o <file>        write a consistent snapshot of the database
   renormalize             replay stored raw batches through the current
                           normalizer and pricing table (backfill after upgrades)
   version                 print version`)
@@ -166,6 +172,29 @@ func renormalizeCmd(args []string) error {
 		return err
 	}
 	fmt.Printf("replayed %d raw batches through the current normalizer and pricing table\n", n)
+	return nil
+}
+
+func backupCmd(args []string) error {
+	fs := flag.NewFlagSet("backup", flag.ExitOnError)
+	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
+	out := fs.String("o", "", "destination file for the backup (required; must not exist)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *out == "" {
+		return fmt.Errorf("usage: otterscope backup -o <file> [-db path]")
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, *dbPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer st.Close()
+	if err := st.Backup(ctx, *out); err != nil {
+		return err
+	}
+	fmt.Printf("backed up %s to %s\n", *dbPath, *out)
 	return nil
 }
 
