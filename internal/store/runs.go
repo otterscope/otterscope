@@ -16,7 +16,7 @@ func (s *Store) UpsertSteps(ctx context.Context, steps []model.Step) error {
 	if len(steps) == 0 {
 		return nil
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.writer.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func rederiveRun(ctx context.Context, tx *sql.Tx, runID string) error {
 // ListRuns returns runs newest-first. offset-based paging is fine at target
 // scale; revisit with keyset paging if it ever shows up in profiles.
 func (s *Store) ListRuns(ctx context.Context, limit, offset int) ([]model.Run, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.reader.QueryContext(ctx, `
 		SELECT id, service, agent_name, status, start_ns, end_ns,
 		       input_tokens, output_tokens, llm_calls, tool_calls, error
 		FROM runs ORDER BY start_ns DESC LIMIT ? OFFSET ?`, limit, offset)
@@ -159,7 +159,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 	var r model.Run
 	var status string
 	var startNS, endNS int64
-	err := s.db.QueryRowContext(ctx, `
+	err := s.reader.QueryRowContext(ctx, `
 		SELECT id, service, agent_name, status, start_ns, end_ns,
 		       input_tokens, output_tokens, llm_calls, tool_calls, error
 		FROM runs WHERE id = ?`, id).
@@ -172,7 +172,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 	r.Start = time.Unix(0, startNS)
 	r.End = time.Unix(0, endNS)
 
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.reader.QueryContext(ctx, `
 		SELECT id, run_id, parent_id, kind, name, service, agent_name, status,
 		       start_ns, end_ns, error,
 		       provider, request_model, response_model, input_tokens, output_tokens,

@@ -16,9 +16,14 @@ import (
 //go:embed migrations/*.sql
 var migrationFS embed.FS
 
-// Store wraps the SQLite database.
+// Store wraps the SQLite database with two handles: a single-connection
+// writer (SQLite serializes writes anyway; one connection avoids
+// SQLITE_BUSY churn) and a small reader pool (WAL makes concurrent reads
+// safe alongside the writer). Reads must go through the reader so a held
+// rows cursor can never starve a write on the same call path (#22).
 type Store struct {
-	db *sql.DB
+	writer *sql.DB
+	reader *sql.DB
 }
 
 // Open opens (creating if needed) the database at path and applies pending
@@ -27,31 +32,42 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	// WAL for concurrent reads during ingest; busy_timeout so the UI and
 	// ingest paths don't fail on transient write contention.
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)", path)
-	db, err := sql.Open("sqlite", dsn)
+	writer, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
-	// modernc.org/sqlite serializes writes; a single writer connection
-	// avoids SQLITE_BUSY churn under concurrent ingest.
-	db.SetMaxOpenConns(1)
+	writer.SetMaxOpenConns(1)
 
-	s := &Store{db: db}
+	reader, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		writer.Close()
+		return nil, err
+	}
+	reader.SetMaxOpenConns(4)
+
+	s := &Store{writer: writer, reader: reader}
 	if err := s.migrate(ctx); err != nil {
-		db.Close()
+		s.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return s, nil
 }
 
-// Close closes the underlying database.
-func (s *Store) Close() error { return s.db.Close() }
+// Close closes both database handles.
+func (s *Store) Close() error {
+	rerr := s.reader.Close()
+	if werr := s.writer.Close(); werr != nil {
+		return werr
+	}
+	return rerr
+}
 
-// DB exposes the raw handle for package-internal queries elsewhere in
-// internal/. It must not be used outside internal/.
-func (s *Store) DB() *sql.DB { return s.db }
+// DB exposes the raw writer handle for package-internal tests. It must not
+// be used outside internal/.
+func (s *Store) DB() *sql.DB { return s.writer }
 
 func (s *Store) migrate(ctx context.Context) error {
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := s.writer.ExecContext(ctx,
 		`CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))`); err != nil {
 		return err
 	}
@@ -64,7 +80,7 @@ func (s *Store) migrate(ctx context.Context) error {
 
 	for _, name := range names {
 		var done int
-		if err := s.db.QueryRowContext(ctx,
+		if err := s.writer.QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM schema_migrations WHERE name = ?`, name).Scan(&done); err != nil {
 			return err
 		}
@@ -75,7 +91,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		tx, err := s.db.BeginTx(ctx, nil)
+		tx, err := s.writer.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
