@@ -60,6 +60,7 @@ func (s *Server) uiHandler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 	})
 	mux.HandleFunc("GET /api/runs", s.handleListRuns)
+	mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
 	mux.Handle("GET /", uiRoot())
 	return mux
 }

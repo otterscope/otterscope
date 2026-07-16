@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/otterscope/otterscope/internal/model"
+	"github.com/otterscope/otterscope/internal/store"
 )
 
 // runJSON is the wire shape of a run in the UI API.
@@ -38,6 +39,91 @@ func toRunJSON(r model.Run) runJSON {
 		Models:       r.Models,
 		Error:        r.Error,
 	}
+}
+
+// stepJSON is the wire shape of a step in the run-detail API.
+type stepJSON struct {
+	ID         string    `json:"id"`
+	ParentID   string    `json:"parentId"`
+	Kind       string    `json:"kind"`
+	Name       string    `json:"name"`
+	Status     string    `json:"status"`
+	Start      string    `json:"start"`
+	OffsetMS   int64     `json:"offsetMs"` // from run start
+	DurationMS int64     `json:"durationMs"`
+	Error      string    `json:"error,omitempty"`
+	LLM        *llmJSON  `json:"llm,omitempty"`
+	Tool       *toolJSON `json:"tool,omitempty"`
+}
+
+type llmJSON struct {
+	Provider       string          `json:"provider"`
+	RequestModel   string          `json:"requestModel"`
+	ResponseModel  string          `json:"responseModel"`
+	InputTokens    int64           `json:"inputTokens"`
+	OutputTokens   int64           `json:"outputTokens"`
+	CacheRead      int64           `json:"cacheReadTokens"`
+	Reasoning      int64           `json:"reasoningTokens"`
+	InputMessages  []model.Message `json:"inputMessages,omitempty"`
+	OutputMessages []model.Message `json:"outputMessages,omitempty"`
+}
+
+type toolJSON struct {
+	Name      string `json:"name"`
+	CallID    string `json:"callId"`
+	Arguments string `json:"arguments,omitempty"`
+	Result    string `json:"result,omitempty"`
+}
+
+// handleGetRun serves GET /api/runs/{id}.
+func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
+	run, steps, err := s.st.GetRun(r.Context(), r.PathValue("id"))
+	if err == store.ErrNotFound {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "run not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+
+	out := make([]stepJSON, 0, len(steps))
+	for _, st := range steps {
+		sj := stepJSON{
+			ID:         st.ID,
+			ParentID:   st.ParentID,
+			Kind:       string(st.Kind),
+			Name:       st.Name,
+			Status:     string(st.Status),
+			Start:      st.Start.UTC().Format("2006-01-02T15:04:05.000Z07:00"),
+			OffsetMS:   st.Start.Sub(run.Start).Milliseconds(),
+			DurationMS: st.End.Sub(st.Start).Milliseconds(),
+			Error:      st.Error,
+		}
+		if st.LLM != nil {
+			sj.LLM = &llmJSON{
+				Provider:       st.LLM.Provider,
+				RequestModel:   st.LLM.RequestModel,
+				ResponseModel:  st.LLM.ResponseModel,
+				InputTokens:    st.LLM.InputTokens,
+				OutputTokens:   st.LLM.OutputTokens,
+				CacheRead:      st.LLM.CacheReadTokens,
+				Reasoning:      st.LLM.ReasoningTokens,
+				InputMessages:  st.LLM.InputMessages,
+				OutputMessages: st.LLM.OutputMessages,
+			}
+		}
+		if st.Tool != nil {
+			sj.Tool = &toolJSON{
+				Name:      st.Tool.Name,
+				CallID:    st.Tool.CallID,
+				Arguments: st.Tool.Arguments,
+				Result:    st.Tool.Result,
+			}
+		}
+		out = append(out, sj)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"run": toRunJSON(run), "steps": out})
 }
 
 // handleListRuns serves GET /api/runs?limit=&offset=.

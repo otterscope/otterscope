@@ -43,7 +43,9 @@
                 { "key": "gen_ai.response.model", "value": { "stringValue": "claude-sonnet-5" } },
                 { "key": "gen_ai.usage.input_tokens", "value": { "intValue": "950" } },
                 { "key": "gen_ai.usage.output_tokens", "value": { "intValue": "120" } },
-                { "key": "gen_ai.response.finish_reasons", "value": { "arrayValue": { "values": [ { "stringValue": "tool-calls" } ] } } }
+                { "key": "gen_ai.response.finish_reasons", "value": { "arrayValue": { "values": [ { "stringValue": "tool-calls" } ] } } },
+                { "key": "ai.prompt.messages", "value": { "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Where is order A-1042?\"}]}]" } },
+                { "key": "ai.response.toolCalls", "value": { "stringValue": "[{\"toolCallId\":\"call_v1\",\"toolName\":\"searchOrders\"}]" } }
               ],
               "status": { "code": 1 }
             },
@@ -58,7 +60,8 @@
               "attributes": [
                 { "key": "ai.toolCall.name", "value": { "stringValue": "searchOrders" } },
                 { "key": "ai.toolCall.id", "value": { "stringValue": "call_v1" } },
-                { "key": "ai.toolCall.args", "value": { "stringValue": "{\"query\": \"A-1042\"}" } }
+                { "key": "ai.toolCall.args", "value": { "stringValue": "{\"query\": \"A-1042\"}" } },
+                { "key": "ai.toolCall.result", "value": { "stringValue": "{\"status\": \"shipped\"}" } }
               ],
               "status": { "code": 1 }
             }

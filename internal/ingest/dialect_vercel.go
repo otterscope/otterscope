@@ -26,8 +26,10 @@ func applyVercelAI(sp ptrace.Span, st *model.Step) {
 	case name == "ai.toolCall":
 		st.Kind = model.StepTool
 		st.Tool = &model.ToolCall{
-			Name:   stringAttr(attrs, "ai.toolCall.name"),
-			CallID: stringAttr(attrs, "ai.toolCall.id"),
+			Name:      stringAttr(attrs, "ai.toolCall.name"),
+			CallID:    stringAttr(attrs, "ai.toolCall.id"),
+			Arguments: stringAttr(attrs, "ai.toolCall.args"),
+			Result:    stringAttr(attrs, "ai.toolCall.result"),
 		}
 		if st.Tool.Name == "" {
 			st.Tool.Name = name
@@ -40,6 +42,12 @@ func applyVercelAI(sp ptrace.Span, st *model.Step) {
 			ResponseModel: stringAttr(attrs, "gen_ai.response.model", "ai.response.model"),
 			InputTokens:   intAttr(attrs, "gen_ai.usage.input_tokens", "ai.usage.promptTokens"),
 			OutputTokens:  intAttr(attrs, "gen_ai.usage.output_tokens", "ai.usage.completionTokens"),
+			InputMessages: vercelPromptMessages(attrs, "ai.prompt.messages"),
+		}
+		if text := stringAttr(attrs, "ai.response.text"); text != "" {
+			st.LLM.OutputMessages = []model.Message{{Role: "assistant", Content: text}}
+		} else if calls := stringAttr(attrs, "ai.response.toolCalls"); calls != "" {
+			st.LLM.OutputMessages = []model.Message{{Role: "assistant", Content: "[tool_calls " + calls + "]"}}
 		}
 	default:
 		// Wrapper spans (ai.generateText, ai.streamText, ...) repeat the

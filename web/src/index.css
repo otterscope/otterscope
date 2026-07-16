@@ -110,3 +110,164 @@ table.runs .num {
   background: #102a3d;
   color: var(--accent);
 }
+
+.clickable {
+  cursor: pointer;
+}
+
+tr.clickable:hover {
+  background: #141b24;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.run-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.run-head .stat {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.run-error {
+  color: #ff8e8e;
+  background: #3a1518;
+  padding: 0.5rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.timeline {
+  margin-top: 1.5rem;
+  border: 1px solid #1f2733;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 70px 2fr;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.35rem 0.7rem;
+  border-bottom: 1px solid #161d26;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.step:last-child {
+  border-bottom: none;
+}
+
+.step:hover,
+.step.selected {
+  background: #141b24;
+}
+
+.step-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-duration {
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+  position: relative;
+  height: 10px;
+  background: #10161d;
+  border-radius: 5px;
+}
+
+.bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--muted);
+}
+
+.bar.llm {
+  background: var(--accent);
+}
+
+.bar.tool {
+  background: #d2a6ff;
+}
+
+.bar.agent {
+  background: #7fd88f;
+}
+
+.kind {
+  display: inline-block;
+  margin-right: 0.5rem;
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  background: #1a212b;
+  color: var(--muted);
+}
+
+.kind.llm {
+  color: var(--accent);
+}
+
+.kind.tool {
+  color: #d2a6ff;
+}
+
+.kind.agent {
+  color: #7fd88f;
+}
+
+.inspector {
+  margin-top: 1.5rem;
+  border: 1px solid #1f2733;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+}
+
+.inspector h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.msg {
+  margin-top: 0.8rem;
+}
+
+.msg .role {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.msg pre {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  background: #10161d;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+}
+
+.msg.out pre {
+  border-left: 3px solid var(--accent);
+}
