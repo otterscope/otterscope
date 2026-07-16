@@ -11,7 +11,7 @@ import (
 // IngestBatch persists a raw ingested batch and its normalized steps in one
 // transaction. raw is the gzip-compressed protobuf of the original request.
 func (s *Store) IngestBatch(ctx context.Context, raw []byte, steps []model.Step) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.writer.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (s *Store) EachRawBatch(ctx context.Context, fn func(payload []byte) error)
 }
 
 func (s *Store) rawBatchPage(ctx context.Context, afterID int64, limit int) ([][]byte, int64, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := s.reader.QueryContext(ctx,
 		`SELECT id, payload FROM raw_batches WHERE id > ? ORDER BY id LIMIT ?`, afterID, limit)
 	if err != nil {
 		return nil, 0, err
