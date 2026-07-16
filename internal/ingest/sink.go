@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -51,7 +53,16 @@ func (s *StoreSink) ConsumeTraces(ctx context.Context, project string, td ptrace
 			runIDs = append(runIDs, st.RunID)
 		}
 	}
-	return EvaluateRuns(ctx, s.st, runIDs)
+	// Detached: judge assertions make network calls that must never hold up
+	// the exporter's OTLP request.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := EvaluateRuns(ctx, s.st, runIDs, false); err != nil {
+			slog.Error("assertion evaluation failed", "err", err)
+		}
+	}()
+	return nil
 }
 
 // priceSteps stamps CostUSD on llm steps with a known model. Unknown models

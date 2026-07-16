@@ -2,7 +2,9 @@ package ingest
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math/rand"
 
 	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/model"
@@ -10,8 +12,10 @@ import (
 )
 
 // EvaluateRuns scores each completed run against its project's enabled
-// assertions. Safe to re-run: results upsert by (run, assertion).
-func EvaluateRuns(ctx context.Context, st *store.Store, runIDs []string) error {
+// assertions. Deterministic assertions always run; llm_judge assertions run
+// subject to their sampleRate, or unconditionally when judgeAll is set
+// (on-demand backfill). Safe to re-run: results upsert by (run, assertion).
+func EvaluateRuns(ctx context.Context, st *store.Store, runIDs []string, judgeAll bool) error {
 	cache := map[string][]evals.Assertion{} // project → enabled assertions
 	for _, id := range runIDs {
 		run, steps, err := st.GetRun(ctx, id)
@@ -38,8 +42,14 @@ func EvaluateRuns(ctx context.Context, st *store.Store, runIDs []string) error {
 		if len(asserts) == 0 {
 			continue
 		}
-		results := make([]evals.Result, 0, len(asserts))
+		var results []evals.Result
 		for _, a := range asserts {
+			if a.Type == "llm_judge" {
+				if judgeAll || sampled(a) {
+					results = append(results, evals.Judge(ctx, a, run, steps))
+				}
+				continue
+			}
 			results = append(results, evals.Evaluate(a, run, steps))
 		}
 		if err := st.SaveAssertionResults(ctx, run.ID, results); err != nil {
@@ -47,6 +57,20 @@ func EvaluateRuns(ctx context.Context, st *store.Store, runIDs []string) error {
 		}
 	}
 	return nil
+}
+
+// sampled applies the judge's sampleRate (0 or unset = judge everything).
+func sampled(a evals.Assertion) bool {
+	var cfg struct {
+		SampleRate float64 `json:"sampleRate"`
+	}
+	if err := json.Unmarshal([]byte(a.Config), &cfg); err != nil {
+		return false
+	}
+	if cfg.SampleRate <= 0 || cfg.SampleRate >= 1 {
+		return true
+	}
+	return rand.Float64() < cfg.SampleRate
 }
 
 // EvaluateProject backfills assertion results over every completed run in a
@@ -68,7 +92,7 @@ func EvaluateProject(ctx context.Context, st *store.Store, project string) (int,
 				ids = append(ids, r.ID)
 			}
 		}
-		if err := EvaluateRuns(ctx, st, ids); err != nil {
+		if err := EvaluateRuns(ctx, st, ids, true); err != nil {
 			return total, err
 		}
 		total += len(ids)
