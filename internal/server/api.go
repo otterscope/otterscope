@@ -10,18 +10,20 @@ import (
 
 // runJSON is the wire shape of a run in the UI API.
 type runJSON struct {
-	ID           string `json:"id"`
-	Service      string `json:"service"`
-	AgentName    string `json:"agentName"`
-	Status       string `json:"status"`
-	Start        string `json:"start"` // RFC 3339 with ms
-	DurationMS   int64  `json:"durationMs"`
-	InputTokens  int64  `json:"inputTokens"`
-	OutputTokens int64  `json:"outputTokens"`
-	LLMCalls     int64  `json:"llmCalls"`
-	ToolCalls    int64  `json:"toolCalls"`
-	Models       string `json:"models"`
-	Error        string `json:"error"`
+	ID           string   `json:"id"`
+	Service      string   `json:"service"`
+	AgentName    string   `json:"agentName"`
+	Status       string   `json:"status"`
+	Start        string   `json:"start"` // RFC 3339 with ms
+	DurationMS   int64    `json:"durationMs"`
+	InputTokens  int64    `json:"inputTokens"`
+	OutputTokens int64    `json:"outputTokens"`
+	LLMCalls     int64    `json:"llmCalls"`
+	ToolCalls    int64    `json:"toolCalls"`
+	Models       string   `json:"models"`
+	CostUSD      *float64 `json:"costUsd,omitempty"`
+	CostPartial  bool     `json:"costPartial,omitempty"`
+	Error        string   `json:"error"`
 }
 
 func toRunJSON(r model.Run) runJSON {
@@ -37,6 +39,8 @@ func toRunJSON(r model.Run) runJSON {
 		LLMCalls:     r.LLMCalls,
 		ToolCalls:    r.ToolCalls,
 		Models:       r.Models,
+		CostUSD:      r.CostUSD,
+		CostPartial:  r.CostPartial,
 		Error:        r.Error,
 	}
 }
@@ -64,6 +68,7 @@ type llmJSON struct {
 	OutputTokens   int64           `json:"outputTokens"`
 	CacheRead      int64           `json:"cacheReadTokens"`
 	Reasoning      int64           `json:"reasoningTokens"`
+	CostUSD        *float64        `json:"costUsd,omitempty"`
 	InputMessages  []model.Message `json:"inputMessages,omitempty"`
 	OutputMessages []model.Message `json:"outputMessages,omitempty"`
 }
@@ -109,6 +114,7 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 				OutputTokens:   st.LLM.OutputTokens,
 				CacheRead:      st.LLM.CacheReadTokens,
 				Reasoning:      st.LLM.ReasoningTokens,
+				CostUSD:        st.LLM.CostUSD,
 				InputMessages:  st.LLM.InputMessages,
 				OutputMessages: st.LLM.OutputMessages,
 			}

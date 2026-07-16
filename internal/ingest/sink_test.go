@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
+	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/store"
 )
 
@@ -27,7 +28,7 @@ func TestStoreSinkPersistsAndRenormalizes(t *testing.T) {
 	}
 	defer st.Close()
 
-	sink := NewStoreSink(st)
+	sink := NewStoreSink(st, pricing.Default())
 	if err := sink.ConsumeTraces(ctx, fixtureTraces(t).Traces()); err != nil {
 		t.Fatalf("ConsumeTraces: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestStoreSinkPersistsAndRenormalizes(t *testing.T) {
 		t.Fatalf("GetRun after delete: %v", err)
 	}
 
-	if err := Renormalize(ctx, st); err != nil {
+	if err := Renormalize(ctx, st, pricing.Default()); err != nil {
 		t.Fatalf("Renormalize: %v", err)
 	}
 	run, steps, err = st.GetRun(ctx, runID)
@@ -65,7 +66,7 @@ func TestStoreSinkPersistsAndRenormalizes(t *testing.T) {
 	}
 
 	// Renormalizing again must not duplicate anything.
-	if err := Renormalize(ctx, st); err != nil {
+	if err := Renormalize(ctx, st, pricing.Default()); err != nil {
 		t.Fatalf("second Renormalize: %v", err)
 	}
 	_, steps, err = st.GetRun(ctx, runID)

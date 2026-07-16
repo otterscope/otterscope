@@ -10,6 +10,8 @@ export type Run = {
   llmCalls: number;
   toolCalls: number;
   models: string;
+  costUsd?: number;
+  costPartial?: boolean;
   error: string;
 };
 
@@ -33,6 +35,7 @@ export type Step = {
     outputTokens: number;
     cacheReadTokens: number;
     reasoningTokens: number;
+    costUsd?: number;
     inputMessages?: Message[];
     outputMessages?: Message[];
   };
@@ -64,4 +67,12 @@ export function fmtStart(iso: string): string {
   return sameDay
     ? d.toLocaleTimeString()
     : `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+}
+
+export function fmtCost(usd?: number, partial?: boolean): string {
+  if (usd === undefined || usd === null) return "\u2014";
+  const p = partial ? "\u2265 " : "";
+  if (usd >= 1) return `${p}$${usd.toFixed(2)}`;
+  if (usd >= 0.01) return `${p}$${usd.toFixed(3)}`;
+  return `${p}$${usd.toFixed(5)}`;
 }

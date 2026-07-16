@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fmtDuration, fmtStart, fmtTokens, type Run } from "./api";
+import { fmtCost, fmtDuration, fmtStart, fmtTokens, type Run } from "./api";
 
 const POLL_MS = 2000;
 
@@ -47,6 +47,7 @@ export default function RunsList({
           <th>duration</th>
           <th>service / agent</th>
           <th>models</th>
+          <th className="num">cost</th>
           <th className="num">tokens in</th>
           <th className="num">out</th>
           <th className="num">llm</th>
@@ -71,6 +72,7 @@ export default function RunsList({
               {r.agentName && <span className="agent"> / {r.agentName}</span>}
             </td>
             <td>{r.models || "—"}</td>
+            <td className="num">{fmtCost(r.costUsd, r.costPartial)}</td>
             <td className="num">{fmtTokens(r.inputTokens)}</td>
             <td className="num">{fmtTokens(r.outputTokens)}</td>
             <td className="num">{r.llmCalls}</td>
