@@ -8,7 +8,10 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"sort"
+	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -24,6 +27,7 @@ var migrationFS embed.FS
 type Store struct {
 	writer *sql.DB
 	reader *sql.DB
+	path   string // db file path, for backups
 }
 
 // Open opens (creating if needed) the database at path and applies pending
@@ -45,12 +49,21 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	}
 	reader.SetMaxOpenConns(4)
 
-	s := &Store{writer: writer, reader: reader}
+	s := &Store{writer: writer, reader: reader, path: path}
 	if err := s.migrate(ctx); err != nil {
 		s.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return s, nil
+}
+
+// Backup writes a consistent snapshot of the database to dest using SQLite's
+// VACUUM INTO (includes committed WAL). dest must not already exist.
+func (s *Store) Backup(ctx context.Context, dest string) error {
+	if _, err := s.writer.ExecContext(ctx, "VACUUM INTO ?", dest); err != nil {
+		return fmt.Errorf("backup to %s: %w", dest, err)
+	}
+	return nil
 }
 
 // Close closes both database handles.
@@ -77,6 +90,31 @@ func (s *Store) migrate(ctx context.Context) error {
 		return err
 	}
 	sort.Strings(names)
+
+	// Count already-applied migrations: >0 means this is an existing db being
+	// upgraded (not first init), so back it up before touching it.
+	var applied int
+	if err := s.writer.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&applied); err != nil {
+		return err
+	}
+	pending := 0
+	for _, name := range names {
+		var done int
+		if err := s.writer.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM schema_migrations WHERE name = ?`, name).Scan(&done); err != nil {
+			return err
+		}
+		if done == 0 {
+			pending++
+		}
+	}
+	if pending > 0 && applied > 0 {
+		if err := s.backupBeforeMigrate(ctx); err != nil {
+			// A failed pre-migration backup must not silently proceed to a
+			// possibly-destructive migration.
+			return fmt.Errorf("pre-migration backup failed (refusing to migrate): %w", err)
+		}
+	}
 
 	for _, name := range names {
 		var done int
@@ -108,5 +146,19 @@ func (s *Store) migrate(ctx context.Context) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// backupBeforeMigrate snapshots the db next to itself before an upgrade, so a
+// bad migration on real data is recoverable. Skipped for in-memory dbs.
+func (s *Store) backupBeforeMigrate(ctx context.Context) error {
+	if s.path == "" || strings.Contains(s.path, ":memory:") {
+		return nil
+	}
+	dest := fmt.Sprintf("%s.pre-migrate-%d.bak", s.path, time.Now().Unix())
+	if err := s.Backup(ctx, dest); err != nil {
+		return err
+	}
+	slog.Info("backed up database before applying migrations", "backup", dest)
 	return nil
 }
