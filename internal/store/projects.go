@@ -82,6 +82,10 @@ func (s *Store) Sweep(ctx context.Context, cutoff time.Time) (int64, error) {
 
 	ns := cutoff.UnixNano()
 	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM assertion_results WHERE run_id IN (SELECT id FROM runs WHERE start_ns < ?)`, ns); err != nil {
+		return 0, err
+	}
+	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM steps WHERE run_id IN (SELECT id FROM runs WHERE start_ns < ?)`, ns); err != nil {
 		return 0, err
 	}

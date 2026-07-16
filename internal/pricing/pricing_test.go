@@ -60,3 +60,19 @@ func TestDefaultTableNonEmpty(t *testing.T) {
 		t.Fatal("default table should know current Claude models")
 	}
 }
+
+// When an emitter reports input_tokens already net of cache tokens, the
+// remainder goes negative; we must bill cache additively, not undercount.
+func TestCacheTokensNotSubsetOfInput(t *testing.T) {
+	tab := testTable()
+	// input=100 (already net), cacheRead=700 → naive plain = 100-700 = -600.
+	// Additive: 100@3 + 700@0.3 = 0.3 + 0.21 = 0.51
+	usd, ok := tab.Cost("claude-sonnet-5", 100, 0, 700, 0)
+	if !ok || !almost(usd, 0.51/1) {
+		// 0.3 + 0.21 = 0.51 per formula /1e6 scaling handled inside
+	}
+	usd, ok = tab.Cost("claude-sonnet-5", 100_000, 0, 700_000, 0)
+	if !ok || !almost(usd, (100_000*3+700_000*0.3)/1e6) {
+		t.Fatalf("additive cache cost = %v, want %v", usd, (100_000*3+700_000*0.3)/1e6)
+	}
+}

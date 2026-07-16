@@ -42,9 +42,23 @@ func EvaluateRuns(ctx context.Context, st *store.Store, judge evals.Endpoint, ru
 		if len(asserts) == 0 {
 			continue
 		}
+		// Existing results let us skip re-judging (a paid call) when a
+		// batch for an already-scored run is redelivered.
+		var judged map[int64]bool
+		if !judgeAll {
+			judged = map[int64]bool{}
+			if existing, err := st.ResultsForRun(ctx, id); err == nil {
+				for _, r := range existing {
+					judged[r.AssertionID] = true
+				}
+			}
+		}
 		var results []evals.Result
 		for _, a := range asserts {
 			if a.Type == "llm_judge" {
+				if judged[a.ID] {
+					continue // already scored; don't re-pay on redelivery
+				}
 				if judgeAll || sampled(a) {
 					results = append(results, evals.Judge(ctx, judge, a, run, steps))
 				}

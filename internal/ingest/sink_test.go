@@ -7,7 +7,6 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
-	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/pricing"
 	"github.com/otterscope/otterscope/internal/store"
 )
@@ -29,7 +28,7 @@ func TestStoreSinkPersistsAndRenormalizes(t *testing.T) {
 	}
 	defer st.Close()
 
-	sink := NewStoreSink(st, pricing.Default(), evals.Endpoint{})
+	sink := NewStoreSink(st, pricing.Default(), nil)
 	if err := sink.ConsumeTraces(ctx, "default", fixtureTraces(t).Traces()); err != nil {
 		t.Fatalf("ConsumeTraces: %v", err)
 	}
