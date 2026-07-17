@@ -4,6 +4,7 @@ import RunDetail from "./RunDetail";
 import Compare from "./Compare";
 import Alerts from "./Alerts";
 import SharedRun from "./SharedRun";
+import Audit from "./Audit";
 
 type Health = { status: string; version: string };
 
@@ -70,6 +71,15 @@ export default function App() {
           >
             alerts
           </a>
+          <a
+            href="/audit"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/audit");
+            }}
+          >
+            audit
+          </a>
         </nav>
       </header>
       <main>
@@ -79,6 +89,8 @@ export default function App() {
           <Compare />
         ) : path === "/alerts" ? (
           <Alerts />
+        ) : path === "/audit" ? (
+          <Audit />
         ) : (
           <RunsList navigate={navigate} />
         )}

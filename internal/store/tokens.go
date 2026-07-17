@@ -27,6 +27,7 @@ func (s *Store) CreateReadToken(ctx context.Context, name string) (ReadToken, er
 	if err != nil {
 		return ReadToken{}, err
 	}
+	s.audit(ctx, "create", "token", name)
 	return t, nil
 }
 
@@ -53,8 +54,11 @@ func (s *Store) ListReadTokens(ctx context.Context) ([]ReadToken, error) {
 
 // DeleteReadToken revokes a read token.
 func (s *Store) DeleteReadToken(ctx context.Context, token string) error {
-	_, err := s.writer.ExecContext(ctx, `DELETE FROM read_tokens WHERE token = ?`, token)
-	return err
+	if _, err := s.writer.ExecContext(ctx, `DELETE FROM read_tokens WHERE token = ?`, token); err != nil {
+		return err
+	}
+	s.audit(ctx, "delete", "token", shortToken(token))
+	return nil
 }
 
 // ValidReadToken reports whether token is a live read token.

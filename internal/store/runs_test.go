@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/model"
 )
 
@@ -258,5 +259,33 @@ func TestPromptAggregationAndFilter(t *testing.T) {
 	// Stats honor the prompt filter too (compare axis).
 	if s, _ := st.GetStats(ctx, Filter{Prompt: "v2"}); s.Runs != 1 {
 		t.Fatalf("stats prompt filter: %d", s.Runs)
+	}
+}
+
+func TestAuditLog(t *testing.T) {
+	st := openTest(t)
+	ctx := context.Background()
+
+	if _, err := st.CreateProject(ctx, "prod"); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := st.CreateAssertion(ctx, evals.Assertion{Name: "n", Type: "is_json", Enabled: true})
+	if err := st.DeleteAssertion(ctx, a.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	entries, err := st.ListAudit(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("got %d audit entries, want 3", len(entries))
+	}
+	// Newest first: delete assertion, create assertion, create project.
+	if entries[0].Action != "delete" || entries[0].Entity != "assertion" {
+		t.Errorf("newest entry: %+v", entries[0])
+	}
+	if entries[2].Action != "create" || entries[2].Entity != "project" || entries[2].Detail != "prod" {
+		t.Errorf("oldest entry: %+v", entries[2])
 	}
 }

@@ -20,6 +20,7 @@ func (s *Store) CreateAssertion(ctx context.Context, a evals.Assertion) (evals.A
 		return evals.Assertion{}, err
 	}
 	a.ID, _ = res.LastInsertId()
+	s.audit(ctx, "create", "assertion", a.Name)
 	return a, nil
 }
 
@@ -60,7 +61,11 @@ func (s *Store) DeleteAssertion(ctx context.Context, id int64) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM assertions WHERE id = ?`, id); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	s.audit(ctx, "delete", "assertion", itoa64(id))
+	return nil
 }
 
 // SaveAssertionResults upserts results for a run (idempotent by PK).

@@ -224,6 +224,19 @@ func (s *Server) handleSharedRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleAudit serves GET /api/audit?limit=.
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	entries, err := s.st.ListAudit(r.Context(), queryInt(r, "limit", 200, 1, 1000))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	if entries == nil {
+		entries = []store.AuditEntry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
+}
+
 // handleListTokens serves GET /api/tokens.
 func (s *Server) handleListTokens(w http.ResponseWriter, r *http.Request) {
 	toks, err := s.st.ListReadTokens(r.Context())

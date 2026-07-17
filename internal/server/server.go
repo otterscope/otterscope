@@ -98,6 +98,7 @@ func (s *Server) uiHandler() http.Handler {
 	mux.HandleFunc("DELETE /api/assertions/{id}", s.handleDeleteAssertion)
 	mux.HandleFunc("POST /api/assertions/evaluate", s.handleEvaluate)
 	mux.HandleFunc("GET /api/stream", s.handleStream)
+	mux.HandleFunc("GET /api/audit", s.handleAudit)
 	mux.HandleFunc("GET /api/tokens", s.handleListTokens)
 	mux.HandleFunc("POST /api/tokens", s.handleCreateToken)
 	mux.HandleFunc("DELETE /api/tokens/{token}", s.handleDeleteToken)

@@ -62,6 +62,7 @@ claude mcp add otterscope --transport http http://localhost:8317/mcp
 - **Backups you can trust** — `otterscope backup -o snapshot.db` for a consistent copy, and Otterscope auto-snapshots before applying any schema migration, so an upgrade can never leave you stranded.
 - **Prometheus metrics** at `/metrics` (runs, statuses, steps, DB size, firing alerts) — the observability tool is itself observable.
 - **Export your data** — download the current filtered run set as CSV, or script the read API with a token. No lock-in.
+- **Audit log** — every create/delete of assertions, alerts, projects, tokens, views, and shares, from the UI, API, or CLI.
 
 ## Connecting your framework
 

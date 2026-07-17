@@ -29,6 +29,7 @@ func (s *Store) CreateProject(ctx context.Context, name string) (Project, error)
 	if err != nil {
 		return Project{}, fmt.Errorf("create project %q: %w", name, err)
 	}
+	s.audit(ctx, "create", "project", name)
 	return p, nil
 }
 
