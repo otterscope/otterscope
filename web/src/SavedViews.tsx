@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "./api";
 import type { FilterState } from "./Filters";
 
 type View = { id: number; name: string; params: FilterState };
@@ -15,7 +16,7 @@ export default function SavedViews({
   const [views, setViews] = useState<View[]>([]);
 
   const load = () =>
-    fetch("/api/views")
+    apiFetch("/api/views")
       .then((r) => r.json())
       .then((d) => setViews(d.views))
       .catch(() => {});
@@ -27,7 +28,7 @@ export default function SavedViews({
   const save = async () => {
     const name = window.prompt("Name this view (e.g. 'prod errors 24h')");
     if (!name) return;
-    const res = await fetch("/api/views", {
+    const res = await apiFetch("/api/views", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, params: current }),
@@ -37,7 +38,7 @@ export default function SavedViews({
   };
 
   const remove = async (id: number) => {
-    await fetch(`/api/views/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/views/${id}`, { method: "DELETE" });
     load();
   };
 

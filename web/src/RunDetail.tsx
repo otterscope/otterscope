@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { type RunDetail as Detail } from "./api";
+import { type RunDetail as Detail, apiFetch } from "./api";
 import { useLiveTick } from "./live";
 import RunView from "./RunView";
 
@@ -20,7 +20,7 @@ export default function RunDetail({
   useEffect(() => {
     let stop = false;
     const load = () =>
-      fetch(`/api/runs/${id}`)
+      apiFetch(`/api/runs/${id}`)
         .then((r) => {
           if (r.status === 404) {
             setMissing(true);
@@ -39,7 +39,7 @@ export default function RunDetail({
   }, [id, tick]);
 
   const share = async () => {
-    const res = await fetch(`/api/runs/${id}/share`, { method: "POST" });
+    const res = await apiFetch(`/api/runs/${id}/share`, { method: "POST" });
     if (res.ok) {
       const { url } = await res.json();
       setShareUrl(window.location.origin + url);

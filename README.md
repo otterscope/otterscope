@@ -57,7 +57,7 @@ claude mcp add otterscope --transport http http://localhost:8317/mcp
   ![Compare — two models side by side: error rate, latency percentiles, cost, assertion pass rates](docs/screenshots/compare.png)
 - **Drop-in OTel compatibility** — normalizes the OTel GenAI conventions (both current dialects), OpenInference (OpenAI Agents SDK, CrewAI, LangChain), and the Vercel AI SDK. Raw payloads are retained, so old data benefits from future normalizer improvements.
 - **Ask your agent about itself** — a built-in [MCP server](docs/mcp.md) (`POST /mcp`) lets Claude Code and other MCP clients query your runs, steps, cost, and stats. `claude mcp add otterscope --transport http http://localhost:8317/mcp`.
-- **Projects + ingest keys** for isolating multiple agents; optional retention sweep (`-retention 720h`) if you *want* to delete data.
+- **Projects + ingest keys** for isolating multiple agents; **read API tokens** (`otterscope token add`) to script against your data or build external dashboards — enforce them with `serve -read-auth` when you expose the instance; optional retention sweep (`-retention 720h`) if you *want* to delete data.
 - **Backups you can trust** — `otterscope backup -o snapshot.db` for a consistent copy, and Otterscope auto-snapshots before applying any schema migration, so an upgrade can never leave you stranded.
 
 ## Connecting your framework

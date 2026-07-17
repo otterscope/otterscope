@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "./api";
 
 type Alert = {
   id: number;
@@ -39,7 +40,7 @@ export default function Alerts() {
   const [error, setError] = useState("");
 
   const load = () =>
-    fetch("/api/alerts")
+    apiFetch("/api/alerts")
       .then((r) => r.json())
       .then((d) => setAlerts(d.alerts))
       .catch(() => {});
@@ -52,7 +53,7 @@ export default function Alerts() {
 
   const create = async () => {
     setError("");
-    const res = await fetch("/api/alerts", {
+    const res = await apiFetch("/api/alerts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, threshold: Number(form.threshold) }),
@@ -66,7 +67,7 @@ export default function Alerts() {
   };
 
   const remove = async (id: number) => {
-    await fetch(`/api/alerts/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/alerts/${id}`, { method: "DELETE" });
     load();
   };
 

@@ -24,7 +24,7 @@ func testServer(t *testing.T) (*Server, *store.Store) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
-	return New(st, pricing.Default(), evals.Endpoint{}, 0, "test"), st
+	return New(st, pricing.Default(), evals.Endpoint{}, 0, false, "test"), st
 }
 
 func seedRun(t *testing.T, st *store.Store, id string, startSec int64) {
@@ -363,3 +363,56 @@ func TestSavedViewsAPI(t *testing.T) {
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestReadAuth(t *testing.T) {
+	_, st := testServer(t)
+	seedRun(t, st, "r1", 1000)
+	authed := New(st, pricing.Default(), evals.Endpoint{}, 0, true, "test")
+	h := authed.authWrap(authed.uiHandler())
+	tok, _ := st.CreateReadToken(context.Background(), "script")
+
+	get := func(path, bearer string) int {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		if bearer != "" {
+			req.Header.Set("Authorization", "Bearer "+bearer)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	// Protected without a token → 401.
+	if c := get("/api/runs", ""); c != http.StatusUnauthorized {
+		t.Errorf("no token: %d, want 401", c)
+	}
+	// Wrong token → 401.
+	if c := get("/api/runs", "nope"); c != http.StatusUnauthorized {
+		t.Errorf("bad token: %d, want 401", c)
+	}
+	// Valid token → 200.
+	if c := get("/api/runs", tok.Token); c != http.StatusOK {
+		t.Errorf("valid token: %d, want 200", c)
+	}
+	// Health check exempt.
+	if c := get("/healthz", ""); c != http.StatusOK {
+		t.Errorf("healthz should be exempt: %d", c)
+	}
+	// Public share endpoint exempt (404 for unknown token, not 401).
+	if c := get("/api/shared/whatever", ""); c != http.StatusNotFound {
+		t.Errorf("shared should be exempt (404 not 401): %d", c)
+	}
+	// SSE accepts the token as a query param (EventSource can't set headers).
+	// Use a short-lived context so the streaming handler returns after auth.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/api/stream?token="+tok.Token, nil).WithContext(ctx)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code == http.StatusUnauthorized {
+		t.Error("SSE query token should authenticate")
+	}
+	// And a bad SSE query token is rejected fast (no streaming).
+	if c := get("/api/stream?token=bad", ""); c != http.StatusUnauthorized {
+		t.Errorf("bad SSE query token: %d, want 401", c)
+	}
+}
