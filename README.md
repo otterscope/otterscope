@@ -67,6 +67,8 @@ claude mcp add otterscope --transport http http://localhost:8317/mcp
 - **Export your data** — download the current filtered run set as CSV, or script the read API with a token. No lock-in.
 - **Audit log** — every create/delete of assertions, alerts, projects, tokens, views, and shares, from the UI, API, or CLI.
 
+  ![Audit log](docs/screenshots/audit.png)
+
 ## Connecting your framework
 
 Guides for [Pydantic AI](docs/frameworks/pydantic-ai.md), [OpenAI Agents SDK](docs/frameworks/openai-agents.md), [Vercel AI SDK](docs/frameworks/vercel-ai-sdk.md), [LangGraph](docs/frameworks/langgraph.md), and [anything else that speaks OTLP](docs/frameworks/generic-otlp.md).
