@@ -76,8 +76,9 @@ export default function Alerts() {
     <div>
       <h2 className="compare-title">Alerts</h2>
       <p className="hint">
-        Otterscope evaluates each rule over its window and POSTs a JSON
-        notification to your webhook when it starts (and stops) firing.
+        Otterscope evaluates each rule over its window and notifies your
+        webhook when it starts (and stops) firing. Slack and Discord webhook
+        URLs are auto-formatted; anything else gets a JSON payload.
       </p>
 
       <div className="alert-form">

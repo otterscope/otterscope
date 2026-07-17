@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -137,5 +138,75 @@ func TestWatcherFiresAndResolves(t *testing.T) {
 	w.EvaluateOnce(context.Background())
 	if len(got) != 2 || got[1].Status != "resolved" {
 		t.Fatalf("expected resolve notification, got %+v", got)
+	}
+}
+
+func TestWebhookPayloadShapes(t *testing.T) {
+	n := Notification{Alert: "spend", Project: "default", Type: "cost",
+		Status: "firing", Detail: "window cost $6.00 (threshold $5.00)"}
+
+	// Slack: attachments with a color and the message text.
+	slack := map[string]any{}
+	if err := json.Unmarshal(webhookPayload("https://hooks.slack.com/services/T/B/x", n), &slack); err != nil {
+		t.Fatal(err)
+	}
+	att, ok := slack["attachments"].([]any)
+	if !ok || len(att) != 1 {
+		t.Fatalf("slack payload not attachments: %v", slack)
+	}
+	a0 := att[0].(map[string]any)
+	if a0["color"] != "#d9534f" || a0["text"] == "" {
+		t.Errorf("slack attachment: %+v", a0)
+	}
+	if s, _ := a0["text"].(string); !strings.Contains(s, "firing") || !strings.Contains(s, "spend") {
+		t.Errorf("slack text missing content: %q", a0["text"])
+	}
+
+	// Discord: embeds with an integer color.
+	discord := map[string]any{}
+	if err := json.Unmarshal(webhookPayload("https://discord.com/api/webhooks/1/abc", n), &discord); err != nil {
+		t.Fatal(err)
+	}
+	emb, ok := discord["embeds"].([]any)
+	if !ok || len(emb) != 1 {
+		t.Fatalf("discord payload not embeds: %v", discord)
+	}
+	e0 := emb[0].(map[string]any)
+	if e0["description"] == "" || e0["color"] == nil {
+		t.Errorf("discord embed: %+v", e0)
+	}
+
+	// Resolved uses the green color.
+	resolved := n
+	resolved.Status = "resolved"
+	slackR := map[string]any{}
+	json.Unmarshal(webhookPayload("https://hooks.slack.com/x", resolved), &slackR)
+	if slackR["attachments"].([]any)[0].(map[string]any)["color"] != "#5cb85c" {
+		t.Error("resolved should be green")
+	}
+
+	// Generic destination keeps the raw Notification shape.
+	generic := map[string]any{}
+	if err := json.Unmarshal(webhookPayload("https://example.com/hook", n), &generic); err != nil {
+		t.Fatal(err)
+	}
+	if generic["alert"] != "spend" || generic["status"] != "firing" || generic["threshold"] == nil {
+		t.Errorf("generic payload changed shape: %+v", generic)
+	}
+}
+
+func TestDestinationDetection(t *testing.T) {
+	cases := map[string]dest{
+		"https://hooks.slack.com/services/T/B/x":   destSlack,
+		"https://discord.com/api/webhooks/1/abc":   destDiscord,
+		"https://discordapp.com/api/webhooks/1/ab": destDiscord,
+		"https://ptb.discord.com/api/webhooks/1/x": destDiscord,
+		"https://example.com/hook":                 destGeneric,
+		"not a url":                                destGeneric,
+	}
+	for url, want := range cases {
+		if got := destination(url); got != want {
+			t.Errorf("destination(%q) = %d, want %d", url, got, want)
+		}
 	}
 }

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -131,7 +133,7 @@ func (w *Watcher) evaluateOnce(ctx context.Context) {
 func (w *Watcher) EvaluateOnce(ctx context.Context) { w.evaluateOnce(ctx) }
 
 func (w *Watcher) notify(r store.Rule, status, detail string) {
-	payload, _ := json.Marshal(Notification{
+	n := Notification{
 		Alert:   r.Name,
 		Project: r.Project,
 		Type:    r.Type,
@@ -139,7 +141,8 @@ func (w *Watcher) notify(r store.Rule, status, detail string) {
 		Detail:  detail,
 		Value:   r.Threshold,
 		FiredAt: w.now().UTC().Format(time.RFC3339),
-	})
+	}
+	payload := webhookPayload(r.WebhookURL, n)
 	req, err := http.NewRequest(http.MethodPost, r.WebhookURL, bytes.NewReader(payload))
 	if err != nil {
 		slog.Error("alerts: bad webhook url", "alert", r.Name, "err", err)
@@ -153,4 +156,73 @@ func (w *Watcher) notify(r store.Rule, status, detail string) {
 	}
 	resp.Body.Close()
 	slog.Info("alert notified", "alert", r.Name, "status", status)
+}
+
+// webhookPayload renders the notification in the shape the destination
+// actually accepts: Slack and Discord ignore arbitrary JSON, so we detect
+// them by host; everything else gets the generic Notification (for
+// programmatic consumers).
+func webhookPayload(webhookURL string, n Notification) []byte {
+	firing := n.Status == "firing"
+	line := n.message()
+
+	switch destination(webhookURL) {
+	case destSlack:
+		color := "#5cb85c" // resolved: green
+		if firing {
+			color = "#d9534f" // firing: red
+		}
+		b, _ := json.Marshal(map[string]any{
+			"attachments": []map[string]any{{"color": color, "text": line}},
+		})
+		return b
+	case destDiscord:
+		color := 0x5cb85c
+		if firing {
+			color = 0xd9534f
+		}
+		b, _ := json.Marshal(map[string]any{
+			"embeds": []map[string]any{{"description": line, "color": color}},
+		})
+		return b
+	default:
+		b, _ := json.Marshal(n)
+		return b
+	}
+}
+
+// message is the one-line human summary used in Slack/Discord bodies.
+func (n Notification) message() string {
+	icon := "✅" // ✅ resolved
+	label := "resolved"
+	if n.Status == "firing" {
+		icon = "\U0001F534" // 🔴 firing
+		label = "firing"
+	}
+	return icon + " [" + label + "] " + n.Alert + " (" + n.Project + "): " + n.Detail
+}
+
+type dest int
+
+const (
+	destGeneric dest = iota
+	destSlack
+	destDiscord
+)
+
+func destination(webhookURL string) dest {
+	u, err := url.Parse(webhookURL)
+	if err != nil {
+		return destGeneric
+	}
+	host := strings.ToLower(u.Hostname())
+	switch {
+	case strings.Contains(host, "hooks.slack.com"):
+		return destSlack
+	case host == "discord.com" || host == "discordapp.com" ||
+		strings.HasSuffix(host, ".discord.com") || strings.HasSuffix(host, ".discordapp.com"):
+		return destDiscord
+	default:
+		return destGeneric
+	}
 }
