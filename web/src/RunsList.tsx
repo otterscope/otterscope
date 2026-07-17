@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { fmtCost, fmtDuration, fmtStart, fmtTokens, type Run } from "./api";
-import Filters, { filtersFromURL, filtersToQuery, type FilterState } from "./Filters";
+import Filters, {
+  filtersFromURL,
+  filtersToQuery,
+  syncURL,
+  type FilterState,
+} from "./Filters";
+import SavedViews from "./SavedViews";
 import { useLiveTick } from "./live";
 
 export default function RunsList({
@@ -11,6 +17,12 @@ export default function RunsList({
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [filters, setFilters] = useState<FilterState>(filtersFromURL);
   const tick = useLiveTick();
+
+  // RunsList owns the filter state (so saved views can drive it); keep the
+  // URL in sync whenever it changes.
+  useEffect(() => {
+    syncURL(filters);
+  }, [filters]);
 
   useEffect(() => {
     let stop = false;
@@ -32,7 +44,8 @@ export default function RunsList({
 
   return (
     <>
-      <Filters onChange={setFilters} />
+      <SavedViews current={filters} onApply={setFilters} />
+      <Filters value={filters} onChange={setFilters} />
       {runs === null && <p className="hint">loading…</p>}
       {runs !== null && runs.length === 0 && (
         <div className="empty">

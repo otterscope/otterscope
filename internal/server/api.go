@@ -221,6 +221,55 @@ func (s *Server) handleSharedRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleListViews serves GET /api/views.
+func (s *Server) handleListViews(w http.ResponseWriter, r *http.Request) {
+	views, err := s.st.ListSavedViews(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	if views == nil {
+		views = []store.SavedView{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"views": views})
+}
+
+// handleCreateView serves POST /api/views.
+func (s *Server) handleCreateView(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name   string          `json:"name"`
+		Params json.RawMessage `json:"params"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad JSON"})
+		return
+	}
+	if body.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+	view, err := s.st.CreateSavedView(r.Context(), body.Name, body.Params)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, view)
+}
+
+// handleDeleteView serves DELETE /api/views/{id}.
+func (s *Server) handleDeleteView(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad id"})
+		return
+	}
+	if err := s.st.DeleteSavedView(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleListAssertions serves GET /api/assertions?project=.
 func (s *Server) handleListAssertions(w http.ResponseWriter, r *http.Request) {
 	out, err := s.st.ListAssertions(r.Context(), r.URL.Query().Get("project"))

@@ -420,3 +420,52 @@ td.truncate {
   font-size: 0.85rem;
   word-break: break-all;
 }
+
+.views {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.2rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.view-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #10161d;
+  border: 1px solid #1f2733;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.view-apply {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0.25rem 0.4rem 0.25rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+.view-del {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem 0.25rem 0.2rem;
+  font-size: 0.9rem;
+}
+
+.view-del:hover {
+  color: #ff8e8e;
+}
+
+.view-save {
+  background: none;
+  border: 1px dashed #2a3543;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}

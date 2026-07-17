@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -299,3 +300,66 @@ func TestSharedUnknownToken(t *testing.T) {
 		t.Fatalf("unknown token should 404, got %d", w.Code)
 	}
 }
+
+func TestSavedViewsAPI(t *testing.T) {
+	srv, _ := testServer(t)
+
+	// Create a view with filter params.
+	body := `{"name":"prod errors","params":{"status":"error","range":"24h","q":"timeout"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/views", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", w.Code, w.Body.String())
+	}
+	var created struct {
+		ID     int64          `json:"id"`
+		Name   string         `json:"name"`
+		Params map[string]any `json:"params"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &created)
+	if created.Name != "prod errors" || created.Params["status"] != "error" || created.Params["q"] != "timeout" {
+		t.Fatalf("created view wrong: %+v", created)
+	}
+
+	// Duplicate name conflicts.
+	req = httptest.NewRequest(http.MethodPost, "/api/views", strings.NewReader(body))
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Errorf("duplicate name should conflict, got %d", w.Code)
+	}
+
+	// List returns it with params as a JSON object.
+	req = httptest.NewRequest(http.MethodGet, "/api/views", nil)
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	var list struct {
+		Views []struct {
+			ID     int64          `json:"id"`
+			Name   string         `json:"name"`
+			Params map[string]any `json:"params"`
+		} `json:"views"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &list)
+	if len(list.Views) != 1 || list.Views[0].Params["range"] != "24h" {
+		t.Fatalf("list wrong: %+v", list)
+	}
+
+	// Delete.
+	req = httptest.NewRequest(http.MethodDelete, "/api/views/"+itoa(created.ID), nil)
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("delete: %d", w.Code)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/views", nil)
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	json.Unmarshal(w.Body.Bytes(), &list)
+	if len(list.Views) != 0 {
+		t.Fatalf("view not deleted: %+v", list)
+	}
+}
+
+func itoa(n int64) string { return strconv.FormatInt(n, 10) }
