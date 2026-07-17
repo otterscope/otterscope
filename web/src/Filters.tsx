@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 export type FilterState = {
   q: string;
   project: string;
@@ -37,33 +35,29 @@ export function filtersToQuery(f: FilterState): string {
   return q.toString();
 }
 
-function syncURL(f: FilterState) {
+export function syncURL(f: FilterState) {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(f)) if (v) q.set(k, v);
   const qs = q.toString();
   window.history.replaceState(null, "", qs ? `/?${qs}` : "/");
 }
 
+// Controlled: the parent owns the filter state so saved views can drive it.
 export default function Filters({
+  value: f,
   onChange,
 }: {
+  value: FilterState;
   onChange: (f: FilterState) => void;
 }) {
-  const [f, setF] = useState<FilterState>(filtersFromURL);
-
-  const update = (patch: Partial<FilterState>) => {
-    const next = { ...f, ...patch };
-    setF(next);
-    syncURL(next);
-    onChange(next);
-  };
+  const update = (patch: Partial<FilterState>) => onChange({ ...f, ...patch });
 
   return (
     <div className="filters">
       <input
         className="search"
         placeholder="search messages & tool i/o…"
-        value={f.status === undefined ? "" : f.q}
+        value={f.q}
         onChange={(e) => update({ q: e.target.value })}
       />
       <select
