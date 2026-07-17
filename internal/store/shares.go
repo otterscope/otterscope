@@ -26,6 +26,7 @@ func (s *Store) CreateShare(ctx context.Context, project, runID string) (string,
 	if err != nil {
 		return "", err
 	}
+	s.audit(ctx, "create", "share", runID)
 	return token, nil
 }
 
@@ -63,6 +64,9 @@ func (s *Store) SharesForRun(ctx context.Context, project, runID string) ([]Shar
 
 // DeleteShare revokes a share token.
 func (s *Store) DeleteShare(ctx context.Context, token string) error {
-	_, err := s.writer.ExecContext(ctx, `DELETE FROM shared_runs WHERE token = ?`, token)
-	return err
+	if _, err := s.writer.ExecContext(ctx, `DELETE FROM shared_runs WHERE token = ?`, token); err != nil {
+		return err
+	}
+	s.audit(ctx, "delete", "share", shortToken(token))
+	return nil
 }

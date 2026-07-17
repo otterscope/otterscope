@@ -35,6 +35,7 @@ func (s *Store) CreateAlert(ctx context.Context, r Rule) (Rule, error) {
 		return Rule{}, err
 	}
 	r.ID, _ = res.LastInsertId()
+	s.audit(ctx, "create", "alert", r.Name)
 	return r, nil
 }
 
@@ -88,6 +89,9 @@ func (s *Store) SetAlertFiring(ctx context.Context, id int64, firing bool) error
 
 // DeleteAlert removes an alert.
 func (s *Store) DeleteAlert(ctx context.Context, id int64) error {
-	_, err := s.writer.ExecContext(ctx, `DELETE FROM alerts WHERE id = ?`, id)
-	return err
+	if _, err := s.writer.ExecContext(ctx, `DELETE FROM alerts WHERE id = ?`, id); err != nil {
+		return err
+	}
+	s.audit(ctx, "delete", "alert", itoa64(id))
+	return nil
 }
