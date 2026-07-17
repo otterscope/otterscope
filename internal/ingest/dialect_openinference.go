@@ -35,6 +35,8 @@ func applyOpenInference(sp ptrace.Span, st *model.Step) {
 			ReasoningTokens:     intAttr(attrs, "llm.token_count.completion_details.reasoning"),
 			InputMessages:       openInferenceMessages(attrs, "llm.input_messages."),
 			OutputMessages:      openInferenceMessages(attrs, "llm.output_messages."),
+			Prompt: promptIdentity(stringAttr(attrs, "llm.prompt_template.name", "prompt.name"),
+				stringAttr(attrs, "llm.prompt_template.version")),
 		}
 	case "EMBEDDING":
 		st.Kind = model.StepLLM

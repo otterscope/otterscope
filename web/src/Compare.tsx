@@ -25,6 +25,7 @@ type Side = {
   status: string;
   model: string;
   service: string;
+  prompt: string;
   range: string;
 };
 
@@ -34,6 +35,7 @@ function sideFromURL(prefix: string): Side {
     status: q.get(`${prefix}_status`) ?? "",
     model: q.get(`${prefix}_model`) ?? "",
     service: q.get(`${prefix}_service`) ?? "",
+    prompt: q.get(`${prefix}_prompt`) ?? "",
     range: q.get(`${prefix}_range`) ?? "",
   };
 }
@@ -43,6 +45,7 @@ function sideQuery(s: Side): string {
   if (s.status) q.set("status", s.status);
   if (s.model) q.set("model", s.model);
   if (s.service) q.set("service", s.service);
+  if (s.prompt) q.set("prompt", s.prompt);
   if (s.range) {
     const hours = { "1h": 1, "24h": 24, "7d": 168 }[s.range];
     if (hours)
@@ -93,6 +96,11 @@ function SideForm({
         placeholder="service…"
         value={side.service}
         onChange={(e) => set({ service: e.target.value })}
+      />
+      <input
+        placeholder="prompt version…"
+        value={side.prompt}
+        onChange={(e) => set({ prompt: e.target.value })}
       />
     </div>
   );

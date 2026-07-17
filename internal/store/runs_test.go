@@ -228,3 +228,35 @@ func TestListRunsFilters(t *testing.T) {
 		t.Errorf("combined filters: %+v", runs)
 	}
 }
+
+func TestPromptAggregationAndFilter(t *testing.T) {
+	st := openTest(t)
+	ctx := context.Background()
+
+	mk := func(id, prompt string, sec int64) {
+		steps := sampleRun(id, sec)
+		steps[1].LLM.Prompt = prompt // the llm step
+		if err := st.UpsertSteps(ctx, steps); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("r-v2", "reply v2", 1000)
+	mk("r-v3", "reply v3", 2000)
+
+	// Run row aggregates the prompt identity.
+	if run, _, _ := st.GetRun(ctx, "r-v2"); run.Prompts != "reply v2" {
+		t.Fatalf("prompts not aggregated: %q", run.Prompts)
+	}
+
+	// Filter by prompt version (substring).
+	if runs, _ := st.ListRuns(ctx, Filter{Prompt: "v3"}, 10, 0); len(runs) != 1 || runs[0].ID != "r-v3" {
+		t.Fatalf("prompt filter v3: %+v", runs)
+	}
+	if runs, _ := st.ListRuns(ctx, Filter{Prompt: "reply"}, 10, 0); len(runs) != 2 {
+		t.Fatalf("prompt filter reply: %+v", runs)
+	}
+	// Stats honor the prompt filter too (compare axis).
+	if s, _ := st.GetStats(ctx, Filter{Prompt: "v2"}); s.Runs != 1 {
+		t.Fatalf("stats prompt filter: %d", s.Runs)
+	}
+}

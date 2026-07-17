@@ -86,6 +86,8 @@ func buildRun(rng *rand.Rand, traceID string, fl flavor, start time.Time, failed
 			Provider: fl.provider, RequestModel: fl.model, ResponseModel: fl.model,
 			InputTokens: in, OutputTokens: out,
 			CacheReadTokens: int64(float64(in) * rng.Float64() * 0.7),
+			// Two prompt versions in the mix so the compare view has an axis.
+			Prompt: fl.agent + " v" + map[bool]string{true: "3", false: "2"}[rng.Float64() < 0.5],
 			InputMessages: []model.Message{
 				{Role: "user", Content: sampleQuestion(rng)},
 			},

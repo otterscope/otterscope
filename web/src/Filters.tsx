@@ -4,6 +4,7 @@ export type FilterState = {
   status: string;
   model: string;
   service: string;
+  prompt: string;
   range: string; // "", "1h", "24h", "7d"
 };
 
@@ -15,6 +16,7 @@ export function filtersFromURL(): FilterState {
     status: q.get("status") ?? "",
     model: q.get("model") ?? "",
     service: q.get("service") ?? "",
+    prompt: q.get("prompt") ?? "",
     range: q.get("range") ?? "",
   };
 }
@@ -26,6 +28,7 @@ export function filtersToQuery(f: FilterState): string {
   if (f.status) q.set("status", f.status);
   if (f.model) q.set("model", f.model);
   if (f.service) q.set("service", f.service);
+  if (f.prompt) q.set("prompt", f.prompt);
   if (f.range) {
     const hours = { "1h": 1, "24h": 24, "7d": 168 }[f.range];
     if (hours) {
@@ -89,6 +92,11 @@ export default function Filters({
         placeholder="service…"
         value={f.service}
         onChange={(e) => update({ service: e.target.value })}
+      />
+      <input
+        placeholder="prompt…"
+        value={f.prompt}
+        onChange={(e) => update({ prompt: e.target.value })}
       />
     </div>
   );

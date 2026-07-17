@@ -39,6 +39,7 @@ type Run struct {
 	LLMCalls     int64
 	ToolCalls    int64
 	Models       string   // distinct request models, comma-joined
+	Prompts      string   // distinct prompt identities, comma-joined
 	CostUSD      *float64 // sum of known step costs; nil when none known
 	CostPartial  bool     // true when some llm steps had no known price
 	Error        string   // first step error encountered
@@ -86,6 +87,8 @@ type LLMCall struct {
 	OutputMessages []Message
 	// CostUSD is set at ingest from the pricing table; nil = unknown model.
 	CostUSD *float64
+	// Prompt identity (name/version) for A/B tracking; "" when not tagged.
+	Prompt string
 }
 
 // ToolCall holds the tool-execution details of a tool step.
