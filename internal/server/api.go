@@ -27,6 +27,7 @@ type runJSON struct {
 	LLMCalls     int64    `json:"llmCalls"`
 	ToolCalls    int64    `json:"toolCalls"`
 	Models       string   `json:"models"`
+	Prompts      string   `json:"prompts,omitempty"`
 	CostUSD      *float64 `json:"costUsd,omitempty"`
 	CostPartial  bool     `json:"costPartial,omitempty"`
 	Error        string   `json:"error"`
@@ -46,6 +47,7 @@ func toRunJSON(r model.Run) runJSON {
 		LLMCalls:     r.LLMCalls,
 		ToolCalls:    r.ToolCalls,
 		Models:       r.Models,
+		Prompts:      r.Prompts,
 		CostUSD:      r.CostUSD,
 		CostPartial:  r.CostPartial,
 		Error:        r.Error,
@@ -361,6 +363,7 @@ func parseFilter(r *http.Request) store.Filter {
 		Status:  q.Get("status"),
 		Service: q.Get("service"),
 		Model:   q.Get("model"),
+		Prompt:  q.Get("prompt"),
 		Query:   q.Get("q"),
 	}
 	if v := q.Get("since"); v != "" {

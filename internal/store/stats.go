@@ -48,6 +48,10 @@ func filterWhere(f Filter) (string, []any) {
 		where += " AND models LIKE ? ESCAPE '\\'"
 		args = append(args, "%"+escapeLike(f.Model)+"%")
 	}
+	if f.Prompt != "" {
+		where += " AND prompts LIKE ? ESCAPE '\\'"
+		args = append(args, "%"+escapeLike(f.Prompt)+"%")
+	}
 	if q := ftsQuery(f.Query); q != "" {
 		where += " AND EXISTS (SELECT 1 FROM steps_fts" +
 			" WHERE steps_fts.project = runs.project AND steps_fts.run_id = runs.id" +
@@ -121,7 +125,7 @@ func (s *Store) GetStats(ctx context.Context, f Filter) (Stats, error) {
 // unambiguous.
 func replaceRunsAlias(where string) string {
 	out := where
-	for _, col := range []string{"project", "status", "service", "models", "start_ns"} {
+	for _, col := range []string{"project", "status", "service", "models", "prompts", "start_ns"} {
 		out = strings.ReplaceAll(out, " AND "+col+" ", " AND runs."+col+" ")
 	}
 	return out

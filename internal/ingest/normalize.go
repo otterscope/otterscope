@@ -92,6 +92,7 @@ func normalizeSpan(sp ptrace.Span, service string) model.Step {
 			ReasoningTokens:     intAttr(attrs, "gen_ai.usage.reasoning.output_tokens"),
 			InputMessages:       append(genAISystemInstructions(attrs), genAIMessages(attrs, "gen_ai.input.messages")...),
 			OutputMessages:      genAIMessages(attrs, "gen_ai.output.messages"),
+			Prompt:              promptIdentity(stringAttr(attrs, "gen_ai.prompt.name"), stringAttr(attrs, "gen_ai.prompt.version")),
 		}
 	case "execute_tool":
 		st.Kind = model.StepTool
@@ -121,6 +122,20 @@ func normalizeSpan(sp ptrace.Span, service string) model.Step {
 }
 
 // stringAttr returns the first present key's string value.
+// promptIdentity builds a display identity from a prompt name and/or version,
+// e.g. "support-reply v3", "v3", or "" when neither is present.
+func promptIdentity(name, version string) string {
+	switch {
+	case name != "" && version != "":
+		return name + " v" + version
+	case name != "":
+		return name
+	case version != "":
+		return "v" + version
+	}
+	return ""
+}
+
 func stringAttr(attrs pcommon.Map, keys ...string) string {
 	for _, key := range keys {
 		if v, ok := attrs.Get(key); ok {

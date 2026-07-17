@@ -40,8 +40,8 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 		 start_ns, end_ns, error,
 		 provider, request_model, response_model, input_tokens, output_tokens,
 		 cache_read_tokens, cache_creation_tokens, reasoning_tokens,
-		 tool_name, tool_call_id, detail, cost_usd)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+		 tool_name, tool_call_id, detail, cost_usd, prompt)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
 	if err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 			st.Start.UnixNano(), st.End.UnixNano(), st.Error,
 			llm.Provider, llm.RequestModel, llm.ResponseModel, llm.InputTokens, llm.OutputTokens,
 			llm.CacheReadTokens, llm.CacheCreationTokens, llm.ReasoningTokens,
-			tool.Name, tool.CallID, marshalDetail(st), nullableFloat(llm.CostUSD),
+			tool.Name, tool.CallID, marshalDetail(st), nullableFloat(llm.CostUSD), llm.Prompt,
 		); err != nil {
 			return fmt.Errorf("insert step %s: %w", st.ID, err)
 		}
@@ -108,12 +108,12 @@ func upsertStepsTx(ctx context.Context, tx *sql.Tx, steps []model.Step) error {
 // merged into another's run (audit #49).
 func rederiveRun(ctx context.Context, tx *sql.Tx, project, runID string) error {
 	var (
-		startNS, endNS               int64
-		inTok, outTok                int64
-		llmCalls, toolCalls          int64
-		hasError, hasRoot, partial   bool
-		service, agent, oerr, models string
-		cost                         sql.NullFloat64
+		startNS, endNS                        int64
+		inTok, outTok                         int64
+		llmCalls, toolCalls                   int64
+		hasError, hasRoot, partial            bool
+		service, agent, oerr, models, prompts string
+		cost                                  sql.NullFloat64
 	)
 	err := tx.QueryRowContext(ctx, `
 		SELECT min(start_ns), max(end_ns),
@@ -124,10 +124,11 @@ func rederiveRun(ctx context.Context, tx *sql.Tx, project, runID string) error {
 		       coalesce((SELECT agent_name FROM steps WHERE project = ?1 AND run_id = ?2 AND agent_name != '' LIMIT 1), ''),
 		       coalesce((SELECT error FROM steps WHERE project = ?1 AND run_id = ?2 AND error != '' ORDER BY start_ns LIMIT 1), ''),
 		       coalesce((SELECT group_concat(DISTINCT request_model) FROM steps WHERE project = ?1 AND run_id = ?2 AND request_model != ''), ''),
+		       coalesce((SELECT group_concat(DISTINCT prompt) FROM steps WHERE project = ?1 AND run_id = ?2 AND prompt != ''), ''),
 		       sum(cost_usd),
 		       max(kind = 'llm' AND cost_usd IS NULL AND (input_tokens > 0 OR output_tokens > 0))
 		FROM steps WHERE project = ?1 AND run_id = ?2`, project, runID).
-		Scan(&startNS, &endNS, &inTok, &outTok, &llmCalls, &toolCalls, &hasError, &hasRoot, &service, &agent, &oerr, &models, &cost, &partial)
+		Scan(&startNS, &endNS, &inTok, &outTok, &llmCalls, &toolCalls, &hasError, &hasRoot, &service, &agent, &oerr, &models, &prompts, &cost, &partial)
 	if err != nil {
 		return err
 	}
@@ -142,18 +143,18 @@ func rederiveRun(ctx context.Context, tx *sql.Tx, project, runID string) error {
 
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO runs (project, id, service, agent_name, status, start_ns, end_ns,
-		                  input_tokens, output_tokens, llm_calls, tool_calls, models,
+		                  input_tokens, output_tokens, llm_calls, tool_calls, models, prompts,
 		                  cost_usd, cost_partial, error)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(project, id) DO UPDATE SET
 		  service=excluded.service, agent_name=excluded.agent_name,
 		  status=excluded.status, start_ns=excluded.start_ns, end_ns=excluded.end_ns,
 		  input_tokens=excluded.input_tokens, output_tokens=excluded.output_tokens,
 		  llm_calls=excluded.llm_calls, tool_calls=excluded.tool_calls,
-		  models=excluded.models, cost_usd=excluded.cost_usd,
+		  models=excluded.models, prompts=excluded.prompts, cost_usd=excluded.cost_usd,
 		  cost_partial=excluded.cost_partial, error=excluded.error`,
 		project, runID, service, agent, string(status), startNS, endNS,
-		inTok, outTok, llmCalls, toolCalls, models, cost, partial, oerr)
+		inTok, outTok, llmCalls, toolCalls, models, prompts, cost, partial, oerr)
 	return err
 }
 
@@ -178,6 +179,7 @@ type Filter struct {
 	Status  string    // exact match: running | ok | error
 	Service string    // prefix match (index-friendly)
 	Model   string    // substring match against the run's models list
+	Prompt  string    // substring match against the run's prompt identities
 	Query   string    // full-text search over step content (messages, tool i/o)
 	Since   time.Time // start >= Since
 	Until   time.Time // start <= Until
@@ -191,7 +193,7 @@ func (s *Store) ListRuns(ctx context.Context, f Filter, limit, offset int) ([]mo
 
 	rows, err := s.reader.QueryContext(ctx, `
 		SELECT id, project, service, agent_name, status, start_ns, end_ns,
-		       input_tokens, output_tokens, llm_calls, tool_calls, models,
+		       input_tokens, output_tokens, llm_calls, tool_calls, models, prompts,
 		       cost_usd, cost_partial, error
 		FROM runs`+where+` ORDER BY start_ns DESC LIMIT ? OFFSET ?`, args...)
 	if err != nil {
@@ -206,7 +208,7 @@ func (s *Store) ListRuns(ctx context.Context, f Filter, limit, offset int) ([]mo
 		var startNS, endNS int64
 		var cost sql.NullFloat64
 		if err := rows.Scan(&r.ID, &r.Project, &r.Service, &r.AgentName, &status, &startNS, &endNS,
-			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models,
+			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models, &r.Prompts,
 			&cost, &r.CostPartial, &r.Error); err != nil {
 			return nil, err
 		}
@@ -292,11 +294,11 @@ func (s *Store) getRun(ctx context.Context, where string, args ...any) (model.Ru
 	var cost sql.NullFloat64
 	err := s.reader.QueryRowContext(ctx, `
 		SELECT id, project, service, agent_name, status, start_ns, end_ns,
-		       input_tokens, output_tokens, llm_calls, tool_calls, models,
+		       input_tokens, output_tokens, llm_calls, tool_calls, models, prompts,
 		       cost_usd, cost_partial, error
 		FROM runs WHERE `+where, args...).
 		Scan(&r.ID, &r.Project, &r.Service, &r.AgentName, &status, &startNS, &endNS,
-			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models,
+			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models, &r.Prompts,
 			&cost, &r.CostPartial, &r.Error)
 	if err != nil {
 		return model.Run{}, nil, err
@@ -319,7 +321,7 @@ func (s *Store) loadSteps(ctx context.Context, project, runID string) ([]model.S
 		       start_ns, end_ns, error,
 		       provider, request_model, response_model, input_tokens, output_tokens,
 		       cache_read_tokens, cache_creation_tokens, reasoning_tokens,
-		       tool_name, tool_call_id, detail, cost_usd
+		       tool_name, tool_call_id, detail, cost_usd, prompt
 		FROM steps WHERE project = ? AND run_id = ? ORDER BY start_ns`, project, runID)
 	if err != nil {
 		return nil, err
@@ -333,16 +335,17 @@ func (s *Store) loadSteps(ctx context.Context, project, runID string) ([]model.S
 		var sNS, eNS int64
 		var llm model.LLMCall
 		var tool model.ToolCall
-		var detail string
+		var detail, prompt string
 		var stepCost sql.NullFloat64
 		if err := rows.Scan(&st.ID, &st.RunID, &st.ParentID, &kind, &st.Name, &st.Service, &st.AgentName, &stStatus,
 			&sNS, &eNS, &st.Error,
 			&llm.Provider, &llm.RequestModel, &llm.ResponseModel, &llm.InputTokens, &llm.OutputTokens,
 			&llm.CacheReadTokens, &llm.CacheCreationTokens, &llm.ReasoningTokens,
-			&tool.Name, &tool.CallID, &detail, &stepCost); err != nil {
+			&tool.Name, &tool.CallID, &detail, &stepCost, &prompt); err != nil {
 			return nil, err
 		}
 		llm.CostUSD = floatPtr(stepCost)
+		llm.Prompt = prompt
 		st.Kind = model.StepKind(kind)
 		st.Status = model.Status(stStatus)
 		st.Start = time.Unix(0, sNS)
