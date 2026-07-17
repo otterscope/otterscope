@@ -416,3 +416,34 @@ func TestReadAuth(t *testing.T) {
 		t.Errorf("bad SSE query token: %d, want 401", c)
 	}
 }
+
+func TestMetricsEndpoint(t *testing.T) {
+	srv, st := testServer(t)
+	seedRun(t, st, "ok1", 1000)
+	base := time.Unix(2000, 0)
+	st.UpsertSteps(context.Background(), []model.Step{{
+		ID: "err1-root", RunID: "err1", Project: "default", Kind: model.StepAgent,
+		Name: "a", Status: model.StatusError, Error: "boom",
+		Start: base, End: base.Add(time.Second),
+	}})
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	w := httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d", w.Code)
+	}
+	body := w.Body.String()
+	for _, want := range []string{
+		"otterscope_build_info{version=",
+		"otterscope_runs_total 2",
+		`otterscope_runs{status="ok"} 1`,
+		`otterscope_runs{status="error"} 1`,
+		"otterscope_db_size_bytes ",
+		"# TYPE otterscope_steps_total gauge",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("metrics missing %q\n%s", want, body)
+		}
+	}
+}
