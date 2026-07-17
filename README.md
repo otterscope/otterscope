@@ -60,6 +60,7 @@ claude mcp add otterscope --transport http http://localhost:8317/mcp
 - **Projects + ingest keys** for isolating multiple agents; **read API tokens** (`otterscope token add`) to script against your data or build external dashboards — enforce them with `serve -read-auth` when you expose the instance; optional retention sweep (`-retention 720h`) if you *want* to delete data.
 - **Backups you can trust** — `otterscope backup -o snapshot.db` for a consistent copy, and Otterscope auto-snapshots before applying any schema migration, so an upgrade can never leave you stranded.
 - **Prometheus metrics** at `/metrics` (runs, statuses, steps, DB size, firing alerts) — the observability tool is itself observable.
+- **Export your data** — download the current filtered run set as CSV, or script the read API with a token. No lock-in.
 
 ## Connecting your framework
 

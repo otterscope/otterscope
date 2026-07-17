@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -445,5 +446,47 @@ func TestMetricsEndpoint(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("metrics missing %q\n%s", want, body)
 		}
+	}
+}
+
+func TestRunsCSV(t *testing.T) {
+	srv, st := testServer(t)
+	seedRun(t, st, "r1", 1000)
+	seedRun(t, st, "r2", 2000)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/runs.csv", nil)
+	w := httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/csv") {
+		t.Errorf("content-type %q", ct)
+	}
+	if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, "otterscope-runs.csv") {
+		t.Errorf("disposition %q", cd)
+	}
+	rows, err := csv.NewReader(strings.NewReader(w.Body.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("bad csv: %v", err)
+	}
+	if len(rows) != 3 { // header + 2 runs
+		t.Fatalf("got %d rows, want 3", len(rows))
+	}
+	if rows[0][0] != "id" || rows[0][5] != "start" {
+		t.Errorf("header wrong: %v", rows[0])
+	}
+	// Newest-first, and token/cost columns populated.
+	if rows[1][0] != "r2" {
+		t.Errorf("row order: %v", rows[1][0])
+	}
+
+	// Filter applies to the export.
+	req = httptest.NewRequest(http.MethodGet, "/api/runs.csv?status=error", nil)
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	rows, _ = csv.NewReader(strings.NewReader(w.Body.String())).ReadAll()
+	if len(rows) != 1 { // header only
+		t.Fatalf("filtered export = %d rows, want 1 (header only)", len(rows))
 	}
 }
