@@ -93,6 +93,8 @@ func serve(args []string) error {
 	judgeURL := fs.String("judge-url", "https://api.openai.com/v1", "OpenAI-compatible endpoint for llm_judge assertions")
 	alertInterval := fs.Duration("alert-interval", time.Minute, "how often to evaluate alert rules; 0 disables alerting")
 	readAuth := fs.Bool("read-auth", false, "require a read token (Bearer) on the API + MCP; create tokens with 'otterscope token add'")
+	ingestRate := fs.Float64("ingest-rate", 0, "max OTLP batches/sec per ingest key (0 = unlimited)")
+	ingestBurst := fs.Float64("ingest-burst", 0, "ingest burst allowance per key (0 = 2x rate)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -130,7 +132,7 @@ func serve(args []string) error {
 	}
 	judge := evals.Endpoint{BaseURL: *judgeURL, Key: judgeKey}
 
-	srv := server.New(st, prices, judge, *alertInterval, *readAuth, version)
+	srv := server.New(st, prices, judge, *alertInterval, *readAuth, *ingestRate, *ingestBurst, version)
 	return srv.Run(ctx, *uiAddr, *otlpAddr)
 }
 

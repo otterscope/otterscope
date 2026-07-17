@@ -43,15 +43,19 @@ type Sink interface {
 type KeyResolver func(ctx context.Context, key string) (project string, ok bool)
 
 // NewHandler returns the OTLP/HTTP handler, routing POST /v1/traces to sink.
-func NewHandler(sink Sink, resolve KeyResolver) http.Handler {
+// ratePerSec/burst set an optional per-key ingest rate limit (0 = unlimited).
+func NewHandler(sink Sink, resolve KeyResolver, ratePerSec, burst float64) http.Handler {
 	mux := http.NewServeMux()
-	mux.Handle("POST /v1/traces", &tracesHandler{sink: sink, resolve: resolve})
+	mux.Handle("POST /v1/traces", &tracesHandler{
+		sink: sink, resolve: resolve, limit: newRateLimiter(ratePerSec, burst),
+	})
 	return mux
 }
 
 type tracesHandler struct {
 	sink    Sink
 	resolve KeyResolver
+	limit   *rateLimiter
 }
 
 func (h *tracesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +63,11 @@ func (h *tracesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	project, ok := h.resolve(r.Context(), key)
 	if !ok {
 		http.Error(w, "unknown ingest key", http.StatusUnauthorized)
+		return
+	}
+	// Rate-limit per project before doing any work.
+	if !h.limit.allow(project) {
+		http.Error(w, "ingest rate limit exceeded", http.StatusTooManyRequests)
 		return
 	}
 

@@ -31,14 +31,16 @@ type Server struct {
 	alertInterval time.Duration
 	hub           *hub
 	readAuth      bool
+	ingestRate    float64
+	ingestBurst   float64
 	version       string
 }
 
 // New creates a Server backed by st, pricing LLM calls via prices, judging
 // with the server-configured endpoint, and evaluating alerts every
 // alertInterval (0 disables the watcher).
-func New(st *store.Store, prices *pricing.Table, judge evals.Endpoint, alertInterval time.Duration, readAuth bool, version string) *Server {
-	return &Server{st: st, prices: prices, judge: judge, alertInterval: alertInterval, hub: newHub(), readAuth: readAuth, version: version}
+func New(st *store.Store, prices *pricing.Table, judge evals.Endpoint, alertInterval time.Duration, readAuth bool, ingestRate, ingestBurst float64, version string) *Server {
+	return &Server{st: st, prices: prices, judge: judge, alertInterval: alertInterval, hub: newHub(), readAuth: readAuth, ingestRate: ingestRate, ingestBurst: ingestBurst, version: version}
 }
 
 // Run serves until ctx is canceled, then shuts both listeners down and
@@ -165,7 +167,7 @@ func authProtected(path string) bool {
 }
 
 func (s *Server) otlpHandler() http.Handler {
-	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices, s.eval, s.hub.broadcast), s.st.ProjectForKey)
+	return ingest.NewHandler(ingest.NewStoreSink(s.st, s.prices, s.eval, s.hub.broadcast), s.st.ProjectForKey, s.ingestRate, s.ingestBurst)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
