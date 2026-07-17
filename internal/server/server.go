@@ -84,6 +84,7 @@ func (s *Server) uiHandler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 	})
 	mux.HandleFunc("GET /api/runs", s.handleListRuns)
+	mux.HandleFunc("GET /api/runs.csv", s.handleRunsCSV)
 	mux.HandleFunc("GET /api/runs/{id}", s.handleGetRun)
 	mux.HandleFunc("POST /api/runs/{id}/share", s.handleCreateShare)
 	mux.HandleFunc("GET /api/runs/{id}/shares", s.handleListShares)

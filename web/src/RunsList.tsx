@@ -35,6 +35,18 @@ export default function RunsList({
     };
   }, [filters, tick]);
 
+  const exportCsv = async () => {
+    const res = await apiFetch(`/api/runs.csv?${filtersToQuery(filters)}`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "otterscope-runs.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const hasFilters =
     filters.project ||
     filters.status ||
@@ -45,7 +57,12 @@ export default function RunsList({
   return (
     <>
       <SavedViews current={filters} onApply={setFilters} />
-      <Filters value={filters} onChange={setFilters} />
+      <div className="list-toolbar">
+        <Filters value={filters} onChange={setFilters} />
+        <button className="csv-btn" onClick={exportCsv} title="Export filtered runs as CSV">
+          export CSV
+        </button>
+      </div>
       {runs === null && <p className="hint">loading…</p>}
       {runs !== null && runs.length === 0 && (
         <div className="empty">

@@ -469,3 +469,31 @@ td.truncate {
   font-size: 0.82rem;
   cursor: pointer;
 }
+
+.list-toolbar {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.list-toolbar .filters {
+  flex: 1;
+}
+
+.csv-btn {
+  background: none;
+  border: 1px solid #1f2733;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-top: 1.2rem;
+  white-space: nowrap;
+}
+
+.csv-btn:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}

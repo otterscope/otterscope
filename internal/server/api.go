@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -430,6 +431,39 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		stats.AssertionRates = []store.AssertionRate{}
 	}
 	writeJSON(w, http.StatusOK, stats)
+}
+
+// handleRunsCSV serves GET /api/runs.csv — the filtered run set as CSV
+// (export cap 10k; narrow filters for more).
+func (s *Server) handleRunsCSV(w http.ResponseWriter, r *http.Request) {
+	runs, err := s.st.ListRuns(r.Context(), parseFilter(r), 10000, 0)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="otterscope-runs.csv"`)
+	cw := csv.NewWriter(w)
+	cw.Write([]string{
+		"id", "project", "service", "agent", "status", "start", "duration_ms",
+		"input_tokens", "output_tokens", "llm_calls", "tool_calls",
+		"models", "prompts", "cost_usd", "error",
+	})
+	for _, run := range runs {
+		j := toRunJSON(run)
+		cost := ""
+		if j.CostUSD != nil {
+			cost = strconv.FormatFloat(*j.CostUSD, 'f', -1, 64)
+		}
+		cw.Write([]string{
+			j.ID, j.Project, j.Service, j.AgentName, j.Status, j.Start,
+			strconv.FormatInt(j.DurationMS, 10),
+			strconv.FormatInt(j.InputTokens, 10), strconv.FormatInt(j.OutputTokens, 10),
+			strconv.FormatInt(j.LLMCalls, 10), strconv.FormatInt(j.ToolCalls, 10),
+			j.Models, j.Prompts, cost, j.Error,
+		})
+	}
+	cw.Flush()
 }
 
 // handleListAlerts serves GET /api/alerts?project=.
