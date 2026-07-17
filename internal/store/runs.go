@@ -272,19 +272,29 @@ func ftsQuery(q string) string {
 // ErrNotFound is returned by GetRun for unknown run IDs.
 var ErrNotFound = sql.ErrNoRows
 
-// GetRun returns a run and its steps ordered by start time.
+// GetRun returns a run and its steps ordered by start time. Trace ID can
+// exist in more than one project (forging can't overwrite, only coexist);
+// newest wins for this bare-ID lookup.
 func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step, error) {
+	return s.getRun(ctx, "id = ? ORDER BY start_ns DESC LIMIT 1", id)
+}
+
+// GetRunInProject returns a run scoped to an exact project, so a shared token
+// can't surface another project's run that happens to share a trace id (#49).
+func (s *Store) GetRunInProject(ctx context.Context, project, id string) (model.Run, []model.Step, error) {
+	return s.getRun(ctx, "project = ? AND id = ?", project, id)
+}
+
+func (s *Store) getRun(ctx context.Context, where string, args ...any) (model.Run, []model.Step, error) {
 	var r model.Run
 	var status string
 	var startNS, endNS int64
 	var cost sql.NullFloat64
-	// Trace ID can now exist in more than one project (forging can't
-	// overwrite, only coexist); newest wins for the bare-ID lookup.
 	err := s.reader.QueryRowContext(ctx, `
 		SELECT id, project, service, agent_name, status, start_ns, end_ns,
 		       input_tokens, output_tokens, llm_calls, tool_calls, models,
 		       cost_usd, cost_partial, error
-		FROM runs WHERE id = ? ORDER BY start_ns DESC LIMIT 1`, id).
+		FROM runs WHERE `+where, args...).
 		Scan(&r.ID, &r.Project, &r.Service, &r.AgentName, &status, &startNS, &endNS,
 			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models,
 			&cost, &r.CostPartial, &r.Error)
@@ -296,15 +306,23 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 	r.Start = time.Unix(0, startNS)
 	r.End = time.Unix(0, endNS)
 
+	steps, err := s.loadSteps(ctx, r.Project, r.ID)
+	if err != nil {
+		return model.Run{}, nil, err
+	}
+	return r, steps, nil
+}
+
+func (s *Store) loadSteps(ctx context.Context, project, runID string) ([]model.Step, error) {
 	rows, err := s.reader.QueryContext(ctx, `
 		SELECT id, run_id, parent_id, kind, name, service, agent_name, status,
 		       start_ns, end_ns, error,
 		       provider, request_model, response_model, input_tokens, output_tokens,
 		       cache_read_tokens, cache_creation_tokens, reasoning_tokens,
 		       tool_name, tool_call_id, detail, cost_usd
-		FROM steps WHERE project = ? AND run_id = ? ORDER BY start_ns`, r.Project, id)
+		FROM steps WHERE project = ? AND run_id = ? ORDER BY start_ns`, project, runID)
 	if err != nil {
-		return model.Run{}, nil, err
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -322,7 +340,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 			&llm.Provider, &llm.RequestModel, &llm.ResponseModel, &llm.InputTokens, &llm.OutputTokens,
 			&llm.CacheReadTokens, &llm.CacheCreationTokens, &llm.ReasoningTokens,
 			&tool.Name, &tool.CallID, &detail, &stepCost); err != nil {
-			return model.Run{}, nil, err
+			return nil, err
 		}
 		llm.CostUSD = floatPtr(stepCost)
 		st.Kind = model.StepKind(kind)
@@ -338,5 +356,5 @@ func (s *Store) GetRun(ctx context.Context, id string) (model.Run, []model.Step,
 		applyDetail(&st, detail)
 		steps = append(steps, st)
 	}
-	return r, steps, rows.Err()
+	return steps, rows.Err()
 }

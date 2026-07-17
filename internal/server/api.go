@@ -98,7 +98,18 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
 		return
 	}
+	results, err := s.st.ResultsForRun(r.Context(), run.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"run": toRunJSON(run), "steps": stepsToJSON(run, steps), "assertionResults": results,
+	})
+}
 
+// stepsToJSON projects a run's steps to the wire shape.
+func stepsToJSON(run model.Run, steps []model.Step) []stepJSON {
 	out := make([]stepJSON, 0, len(steps))
 	for _, st := range steps {
 		sj := stepJSON{
@@ -136,13 +147,77 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, sj)
 	}
-	results, err := s.st.ResultsForRun(r.Context(), run.ID)
+	return out
+}
+
+// handleCreateShare serves POST /api/runs/{id}/share — mint a public link.
+func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	run, _, err := s.st.GetRun(r.Context(), id)
+	if err == store.ErrNotFound {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "run not found"})
+		return
+	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
 		return
 	}
+	token, err := s.st.CreateShare(r.Context(), run.Project, run.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not create share"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"token": token, "url": "/s/" + token})
+}
+
+// handleListShares serves GET /api/runs/{id}/shares.
+func (s *Server) handleListShares(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	run, _, err := s.st.GetRun(r.Context(), id)
+	if err == store.ErrNotFound {
+		writeJSON(w, http.StatusOK, map[string]any{"shares": []store.Share{}})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	shares, err := s.st.SharesForRun(r.Context(), run.Project, run.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	if shares == nil {
+		shares = []store.Share{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"shares": shares})
+}
+
+// handleDeleteShare serves DELETE /api/shares/{token}.
+func (s *Server) handleDeleteShare(w http.ResponseWriter, r *http.Request) {
+	if err := s.st.DeleteShare(r.Context(), r.PathValue("token")); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "revoke failed"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleSharedRun serves the public GET /api/shared/{token}: exactly one run,
+// no listing, no other data. The token is the sole capability.
+func (s *Server) handleSharedRun(w http.ResponseWriter, r *http.Request) {
+	project, runID, ok := s.st.ResolveShare(r.Context(), r.PathValue("token"))
+	if !ok {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	run, steps, err := s.st.GetRunInProject(r.Context(), project, runID)
+	if err != nil {
+		// A revoked run or a stale share resolves to nothing.
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"run": toRunJSON(run), "steps": out, "assertionResults": results,
+		"run": toRunJSON(run), "steps": stepsToJSON(run, steps),
 	})
 }
 

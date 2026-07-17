@@ -229,3 +229,73 @@ func TestAssertionsAPI(t *testing.T) {
 		t.Fatalf("results: %+v", resp.AssertionResults)
 	}
 }
+
+func TestShareLifecycle(t *testing.T) {
+	srv, st := testServer(t)
+	seedRun(t, st, "r1", 1000)
+
+	// Mint a share.
+	req := httptest.NewRequest(http.MethodPost, "/api/runs/r1/share", nil)
+	w := httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("mint: %d %s", w.Code, w.Body.String())
+	}
+	var mint struct{ Token, URL string }
+	json.Unmarshal(w.Body.Bytes(), &mint)
+	if len(mint.Token) != 32 || mint.URL != "/s/"+mint.Token {
+		t.Fatalf("mint response: %+v", mint)
+	}
+
+	// Public endpoint returns exactly that run, no assertionResults key.
+	req = httptest.NewRequest(http.MethodGet, "/api/shared/"+mint.Token, nil)
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("shared fetch: %d %s", w.Code, w.Body.String())
+	}
+	var shared struct {
+		Run   runJSON    `json:"run"`
+		Steps []stepJSON `json:"steps"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &shared)
+	if shared.Run.ID != "r1" || len(shared.Steps) == 0 {
+		t.Fatalf("shared run wrong: %+v", shared.Run)
+	}
+
+	// It's listed for the run.
+	req = httptest.NewRequest(http.MethodGet, "/api/runs/r1/shares", nil)
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	var list struct {
+		Shares []struct{ Token string } `json:"shares"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &list)
+	if len(list.Shares) != 1 || list.Shares[0].Token != mint.Token {
+		t.Fatalf("share not listed: %+v", list)
+	}
+
+	// Revoke → public endpoint 404s.
+	req = httptest.NewRequest(http.MethodDelete, "/api/shares/"+mint.Token, nil)
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("revoke: %d", w.Code)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/shared/"+mint.Token, nil)
+	w = httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("revoked share should 404, got %d", w.Code)
+	}
+}
+
+func TestSharedUnknownToken(t *testing.T) {
+	srv, _ := testServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/shared/deadbeef", nil)
+	w := httptest.NewRecorder()
+	srv.uiHandler().ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unknown token should 404, got %d", w.Code)
+	}
+}
