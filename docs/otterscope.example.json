@@ -1,0 +1,11 @@
+{
+  "db": "/data/otterscope.db",
+  "listen": ":8317",
+  "otlp": ":4318",
+  "retention": "2160h",
+  "alertInterval": "1m",
+  "readAuth": true,
+  "ingestRate": 50,
+  "ingestBurst": 100,
+  "judgeUrl": "https://api.openai.com/v1"
+}
