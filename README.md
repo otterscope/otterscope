@@ -44,7 +44,7 @@ claude mcp add otterscope --transport http http://localhost:8317/mcp
 ## What you get
 
 - **Runs, not span soup** — every trace becomes an agent run: steps, tool loops, per-run tokens and cost, error surfacing, live-tailing list with filters (status, model, service, project, time) and full-text search over message and tool content — all URL-shareable.
-- **Run inspector** — step timeline with proportional duration bars; click any LLM call to read the actual messages in/out, token breakdowns (cache reads, reasoning), and cost; tool calls show arguments and results.
+- **Run inspector** — step timeline with proportional duration bars; click any LLM call to read the actual messages in/out, token breakdowns (cache reads, reasoning), and cost; tool calls show arguments and results. Share any run as a public read-only link (opt-in per run, revocable) to hand a teammate a broken run without giving them your whole instance.
 
   ![Run detail — step timeline, assertion chips, and message inspector](docs/screenshots/run-detail.png)
 - **Cost tracking** — maintained pricing table for major providers (override or extend with `serve -pricing yours.json`); unknown models show tokens, never fabricated costs.

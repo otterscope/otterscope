@@ -3,6 +3,7 @@ import RunsList from "./RunsList";
 import RunDetail from "./RunDetail";
 import Compare from "./Compare";
 import Alerts from "./Alerts";
+import SharedRun from "./SharedRun";
 
 type Health = { status: string; version: string };
 
@@ -33,6 +34,12 @@ export default function App() {
   }, []);
 
   const runMatch = path.match(/^\/runs\/([0-9a-f]+)$/);
+
+  // Public shared-run view renders standalone (no nav, no other data).
+  const shareMatch = path.match(/^\/s\/([0-9a-f]+)$/);
+  if (shareMatch) {
+    return <SharedRun token={shareMatch[1]} />;
+  }
 
   return (
     <div className="shell">
