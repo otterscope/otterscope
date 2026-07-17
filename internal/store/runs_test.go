@@ -10,13 +10,13 @@ import (
 	"github.com/otterscope/otterscope/internal/model"
 )
 
-func openTest(t *testing.T) *Store {
-	t.Helper()
-	st, err := Open(context.Background(), filepath.Join(t.TempDir(), "test.db"))
+func openTest(tb testing.TB) *Store {
+	tb.Helper()
+	st, err := Open(context.Background(), filepath.Join(tb.TempDir(), "test.db"))
 	if err != nil {
-		t.Fatalf("Open: %v", err)
+		tb.Fatalf("Open: %v", err)
 	}
-	t.Cleanup(func() { st.Close() })
+	tb.Cleanup(func() { st.Close() })
 	return st
 }
 
