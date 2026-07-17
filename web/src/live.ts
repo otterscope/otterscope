@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { readToken } from "./api";
 
 // useLiveTick opens an SSE connection to /api/stream and returns a counter
 // that increments whenever the server pushes an ingest tick. Components
@@ -16,7 +17,8 @@ export function useLiveTick(): number {
 
     const connect = () => {
       if (closed) return;
-      es = new EventSource("/api/stream");
+      const t = readToken();
+      es = new EventSource("/api/stream" + (t ? "?token=" + encodeURIComponent(t) : ""));
       es.addEventListener("runs", bump);
       es.onerror = () => {
         // Browser auto-reconnects EventSource; if it hard-fails, the safety

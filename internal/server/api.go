@@ -223,6 +223,45 @@ func (s *Server) handleSharedRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleListTokens serves GET /api/tokens.
+func (s *Server) handleListTokens(w http.ResponseWriter, r *http.Request) {
+	toks, err := s.st.ListReadTokens(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
+		return
+	}
+	if toks == nil {
+		toks = []store.ReadToken{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tokens": toks})
+}
+
+// handleCreateToken serves POST /api/tokens.
+func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+	tok, err := s.st.CreateReadToken(r.Context(), body.Name)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not create token"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, tok)
+}
+
+// handleDeleteToken serves DELETE /api/tokens/{token}.
+func (s *Server) handleDeleteToken(w http.ResponseWriter, r *http.Request) {
+	if err := s.st.DeleteReadToken(r.Context(), r.PathValue("token")); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "revoke failed"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleListViews serves GET /api/views.
 func (s *Server) handleListViews(w http.ResponseWriter, r *http.Request) {
 	views, err := s.st.ListSavedViews(r.Context())

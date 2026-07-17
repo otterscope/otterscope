@@ -30,14 +30,15 @@ type Server struct {
 	eval          *ingest.Evaluator
 	alertInterval time.Duration
 	hub           *hub
+	readAuth      bool
 	version       string
 }
 
 // New creates a Server backed by st, pricing LLM calls via prices, judging
 // with the server-configured endpoint, and evaluating alerts every
 // alertInterval (0 disables the watcher).
-func New(st *store.Store, prices *pricing.Table, judge evals.Endpoint, alertInterval time.Duration, version string) *Server {
-	return &Server{st: st, prices: prices, judge: judge, alertInterval: alertInterval, hub: newHub(), version: version}
+func New(st *store.Store, prices *pricing.Table, judge evals.Endpoint, alertInterval time.Duration, readAuth bool, version string) *Server {
+	return &Server{st: st, prices: prices, judge: judge, alertInterval: alertInterval, hub: newHub(), readAuth: readAuth, version: version}
 }
 
 // Run serves until ctx is canceled, then shuts both listeners down and
@@ -53,7 +54,7 @@ func (s *Server) Run(ctx context.Context, uiAddr, otlpAddr string) error {
 		defer watcher.Stop()
 	}
 
-	ui := &http.Server{Addr: uiAddr, Handler: s.uiHandler()}
+	ui := &http.Server{Addr: uiAddr, Handler: s.authWrap(s.uiHandler())}
 	otlp := &http.Server{Addr: otlpAddr, Handler: s.otlpHandler()}
 
 	errc := make(chan error, 2)
@@ -93,6 +94,9 @@ func (s *Server) uiHandler() http.Handler {
 	mux.HandleFunc("DELETE /api/assertions/{id}", s.handleDeleteAssertion)
 	mux.HandleFunc("POST /api/assertions/evaluate", s.handleEvaluate)
 	mux.HandleFunc("GET /api/stream", s.handleStream)
+	mux.HandleFunc("GET /api/tokens", s.handleListTokens)
+	mux.HandleFunc("POST /api/tokens", s.handleCreateToken)
+	mux.HandleFunc("DELETE /api/tokens/{token}", s.handleDeleteToken)
 	mux.HandleFunc("GET /api/views", s.handleListViews)
 	mux.HandleFunc("POST /api/views", s.handleCreateView)
 	mux.HandleFunc("DELETE /api/views/{id}", s.handleDeleteView)
@@ -126,6 +130,36 @@ func uiRoot() http.Handler {
 		// Unknown paths get index.html — client-side routing owns them.
 		http.ServeFileFS(w, r, fsys, "index.html")
 	})
+}
+
+// authWrap enforces read-token auth on the API + MCP when -read-auth is set.
+// The static UI, health check, and public share endpoint stay open; the UI's
+// own API calls carry a token (see the frontend apiFetch wrapper).
+func (s *Server) authWrap(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.readAuth || !authProtected(r.URL.Path) {
+			h.ServeHTTP(w, r)
+			return
+		}
+		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if token == "" {
+			// SSE (EventSource) can't set headers; accept a query token.
+			token = r.URL.Query().Get("token")
+		}
+		if !s.st.ValidReadToken(r.Context(), token) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "read token required"})
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+// authProtected reports whether a path needs a read token under -read-auth.
+func authProtected(path string) bool {
+	if path == "/healthz" || strings.HasPrefix(path, "/api/shared/") {
+		return false // health + public shares stay open
+	}
+	return strings.HasPrefix(path, "/api/") || path == "/mcp"
 }
 
 func (s *Server) otlpHandler() http.Handler {

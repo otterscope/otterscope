@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fmtCost, fmtDuration, fmtTokens } from "./api";
+import { fmtCost, fmtDuration, fmtTokens, apiFetch } from "./api";
 
 type AssertionRate = {
   assertionId: number;
@@ -118,11 +118,11 @@ export default function Compare() {
 
   useEffect(() => {
     syncURL(a, b);
-    fetch(`/api/stats?${sideQuery(a)}`)
+    apiFetch(`/api/stats?${sideQuery(a)}`)
       .then((r) => r.json())
       .then(setStatsA)
       .catch(() => {});
-    fetch(`/api/stats?${sideQuery(b)}`)
+    apiFetch(`/api/stats?${sideQuery(b)}`)
       .then((r) => r.json())
       .then(setStatsB)
       .catch(() => {});

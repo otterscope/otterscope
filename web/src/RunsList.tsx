@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fmtCost, fmtDuration, fmtStart, fmtTokens, type Run } from "./api";
+import { fmtCost, fmtDuration, fmtStart, fmtTokens, type Run, apiFetch } from "./api";
 import Filters, {
   filtersFromURL,
   filtersToQuery,
@@ -26,7 +26,7 @@ export default function RunsList({
 
   useEffect(() => {
     let stop = false;
-    fetch(`/api/runs?${filtersToQuery(filters)}`)
+    apiFetch(`/api/runs?${filtersToQuery(filters)}`)
       .then((r) => r.json())
       .then((data) => !stop && setRuns(data.runs))
       .catch(() => {});

@@ -44,6 +44,11 @@ func main() {
 			slog.Error("fatal", "err", err)
 			os.Exit(1)
 		}
+	case "token":
+		if err := tokenCmd(os.Args[2:]); err != nil {
+			slog.Error("fatal", "err", err)
+			os.Exit(1)
+		}
 	case "sample":
 		if err := sampleCmd(os.Args[2:]); err != nil {
 			slog.Error("fatal", "err", err)
@@ -70,6 +75,8 @@ commands:
   project add <name>      create a project and print its ingest key
   project list            list projects and their ingest keys
   sample                  seed demo data (services, runs, assertions)
+  token add <name>        create a read-API token and print it
+  token list              list read-API tokens
   backup -o <file>        write a consistent snapshot of the database
   renormalize             replay stored raw batches through the current
                           normalizer and pricing table (backfill after upgrades)
@@ -85,6 +92,7 @@ func serve(args []string) error {
 	retention := fs.Duration("retention", 0, "delete runs older than this (e.g. 720h = 30 days); 0 keeps everything")
 	judgeURL := fs.String("judge-url", "https://api.openai.com/v1", "OpenAI-compatible endpoint for llm_judge assertions")
 	alertInterval := fs.Duration("alert-interval", time.Minute, "how often to evaluate alert rules; 0 disables alerting")
+	readAuth := fs.Bool("read-auth", false, "require a read token (Bearer) on the API + MCP; create tokens with 'otterscope token add'")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -122,7 +130,7 @@ func serve(args []string) error {
 	}
 	judge := evals.Endpoint{BaseURL: *judgeURL, Key: judgeKey}
 
-	srv := server.New(st, prices, judge, *alertInterval, version)
+	srv := server.New(st, prices, judge, *alertInterval, *readAuth, version)
 	return srv.Run(ctx, *uiAddr, *otlpAddr)
 }
 
@@ -196,6 +204,53 @@ func backupCmd(args []string) error {
 	}
 	fmt.Printf("backed up %s to %s\n", *dbPath, *out)
 	return nil
+}
+
+func tokenCmd(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: otterscope token [add <name> | list] [-db path]")
+	}
+	sub := args[0]
+	fs := flag.NewFlagSet("token", flag.ExitOnError)
+	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
+	rest := args[1:]
+	var name string
+	if sub == "add" {
+		if len(rest) < 1 || strings.HasPrefix(rest[0], "-") {
+			return fmt.Errorf("usage: otterscope token add <name> [-db path]")
+		}
+		name, rest = rest[0], rest[1:]
+	}
+	if err := fs.Parse(rest); err != nil {
+		return err
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, *dbPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer st.Close()
+
+	switch sub {
+	case "add":
+		t, err := st.CreateReadToken(ctx, name)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("read token %q created\ntoken: %s\n\nuse it as:\n  curl -H \"Authorization: Bearer %s\" http://localhost:8317/api/runs\n", t.Name, t.Token, t.Token)
+		return nil
+	case "list":
+		toks, err := st.ListReadTokens(ctx)
+		if err != nil {
+			return err
+		}
+		for _, t := range toks {
+			fmt.Printf("%-20s %s\n", t.Name, t.Token)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown subcommand %q", sub)
+	}
 }
 
 func sampleCmd(args []string) error {
