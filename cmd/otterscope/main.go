@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/otterscope/otterscope/internal/config"
 	"github.com/otterscope/otterscope/internal/evals"
 	"github.com/otterscope/otterscope/internal/ingest"
 	"github.com/otterscope/otterscope/internal/pricing"
@@ -67,11 +68,29 @@ func main() {
 	}
 }
 
+// scanArg returns the value of -name/--name from args, or "" if absent.
+func scanArg(args []string, name string) string {
+	for i, a := range args {
+		if a == "-"+name || a == "--"+name {
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+		}
+		if v, ok := strings.CutPrefix(a, "-"+name+"="); ok {
+			return v
+		}
+		if v, ok := strings.CutPrefix(a, "--"+name+"="); ok {
+			return v
+		}
+	}
+	return ""
+}
+
 func usage() {
 	fmt.Fprintln(os.Stderr, `usage: otterscope <command>
 
 commands:
-  serve                   start the ingest + UI server
+  serve [-config f.json]  start the ingest + UI server
   project add <name>      create a project and print its ingest key
   project list            list projects and their ingest keys
   sample                  seed demo data (services, runs, assertions)
@@ -84,17 +103,30 @@ commands:
 }
 
 func serve(args []string) error {
+	// Resolve defaults from a config file (-config or OTTERSCOPE_CONFIG) and
+	// OTTERSCOPE_* env vars; explicit flags below then override them, giving
+	// precedence flags > env > file > built-in defaults.
+	configPath := scanArg(args, "config")
+	if configPath == "" {
+		configPath = os.Getenv("OTTERSCOPE_CONFIG")
+	}
+	cfg, err := config.Load(configPath, os.Getenv)
+	if err != nil {
+		return err
+	}
+
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
-	uiAddr := fs.String("listen", "127.0.0.1:8317", "address for the web UI and API (loopback by default; use :8317 to expose)")
-	otlpAddr := fs.String("otlp", "127.0.0.1:4318", "address for the OTLP/HTTP receiver (loopback by default; use :4318 to expose)")
-	pricingPath := fs.String("pricing", "", "JSON file of pricing overrides, merged over built-in rates")
-	retention := fs.Duration("retention", 0, "delete runs older than this (e.g. 720h = 30 days); 0 keeps everything")
-	judgeURL := fs.String("judge-url", "https://api.openai.com/v1", "OpenAI-compatible endpoint for llm_judge assertions")
-	alertInterval := fs.Duration("alert-interval", time.Minute, "how often to evaluate alert rules; 0 disables alerting")
-	readAuth := fs.Bool("read-auth", false, "require a read token (Bearer) on the API + MCP; create tokens with 'otterscope token add'")
-	ingestRate := fs.Float64("ingest-rate", 0, "max OTLP batches/sec per ingest key (0 = unlimited)")
-	ingestBurst := fs.Float64("ingest-burst", 0, "ingest burst allowance per key (0 = 2x rate)")
+	fs.String("config", configPath, "path to a JSON config file (or OTTERSCOPE_CONFIG)")
+	dbPath := fs.String("db", cfg.DB, "path to the SQLite database file")
+	uiAddr := fs.String("listen", cfg.Listen, "address for the web UI and API (loopback by default; use :8317 to expose)")
+	otlpAddr := fs.String("otlp", cfg.OTLP, "address for the OTLP/HTTP receiver (loopback by default; use :4318 to expose)")
+	pricingPath := fs.String("pricing", cfg.Pricing, "JSON file of pricing overrides, merged over built-in rates")
+	retention := fs.Duration("retention", cfg.Retention, "delete runs older than this (e.g. 720h = 30 days); 0 keeps everything")
+	judgeURL := fs.String("judge-url", cfg.JudgeURL, "OpenAI-compatible endpoint for llm_judge assertions")
+	alertInterval := fs.Duration("alert-interval", cfg.AlertInterval, "how often to evaluate alert rules; 0 disables alerting")
+	readAuth := fs.Bool("read-auth", cfg.ReadAuth, "require a read token (Bearer) on the API + MCP; create tokens with 'otterscope token add'")
+	ingestRate := fs.Float64("ingest-rate", cfg.IngestRate, "max OTLP batches/sec per ingest key (0 = unlimited)")
+	ingestBurst := fs.Float64("ingest-burst", cfg.IngestBurst, "ingest burst allowance per key (0 = 2x rate)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}

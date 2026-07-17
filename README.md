@@ -18,6 +18,9 @@ One static binary. One SQLite file. No ClickHouse, no Redis, no S3, no seat fees
 By default the UI and ingest bind to **loopback** (`127.0.0.1`) — safe on a
 shared machine. To expose them on your network, pass `-listen :8317 -otlp :4318`
 (and consider `-read-auth` and `-ingest-rate` to protect an exposed instance).
+For reproducible deployments, put it all in a config file — `serve -config otterscope.json`
+(see [docs/otterscope.example.json](docs/otterscope.example.json)) — or `OTTERSCOPE_*`
+env vars; flags override env override the file.
 
 or with Docker (the container binds all interfaces inside its namespace; you
 control exposure with `-p`):
