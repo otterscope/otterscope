@@ -74,7 +74,7 @@ func post(t *testing.T, h http.Handler, contentType string, body []byte, gzipped
 
 func TestJSONIngest(t *testing.T) {
 	sink := &countSink{}
-	w := post(t, NewHandler(sink, openResolver), ctJSON, fixture(t, "pydantic_ai_chat.json"), false)
+	w := post(t, NewHandler(sink, openResolver, 0, 0), ctJSON, fixture(t, "pydantic_ai_chat.json"), false)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
@@ -93,7 +93,7 @@ func TestJSONIngest(t *testing.T) {
 
 func TestProtoIngest(t *testing.T) {
 	sink := &countSink{}
-	w := post(t, NewHandler(sink, openResolver), ctProto, fixture(t, "pydantic_ai_chat.pb"), false)
+	w := post(t, NewHandler(sink, openResolver, 0, 0), ctProto, fixture(t, "pydantic_ai_chat.pb"), false)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
@@ -109,7 +109,7 @@ func TestProtoIngest(t *testing.T) {
 
 func TestGzipJSONIngest(t *testing.T) {
 	sink := &countSink{}
-	w := post(t, NewHandler(sink, openResolver), ctJSON, fixture(t, "pydantic_ai_chat.json"), true)
+	w := post(t, NewHandler(sink, openResolver, 0, 0), ctJSON, fixture(t, "pydantic_ai_chat.json"), true)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
@@ -121,7 +121,7 @@ func TestGzipJSONIngest(t *testing.T) {
 
 func TestMalformedPayload(t *testing.T) {
 	for _, ct := range []string{ctJSON, ctProto} {
-		w := post(t, NewHandler(&countSink{}, openResolver), ct, []byte(`{"resourceSpans": [{]`), false)
+		w := post(t, NewHandler(&countSink{}, openResolver, 0, 0), ct, []byte(`{"resourceSpans": [{]`), false)
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("%s: status = %d, want 400", ct, w.Code)
 		}
@@ -133,14 +133,14 @@ func TestBadGzip(t *testing.T) {
 	req.Header.Set("Content-Type", ctJSON)
 	req.Header.Set("Content-Encoding", "gzip")
 	w := httptest.NewRecorder()
-	NewHandler(&countSink{}, openResolver).ServeHTTP(w, req)
+	NewHandler(&countSink{}, openResolver, 0, 0).ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
 	}
 }
 
 func TestUnsupportedContentType(t *testing.T) {
-	w := post(t, NewHandler(&countSink{}, openResolver), "text/plain", []byte("hi"), false)
+	w := post(t, NewHandler(&countSink{}, openResolver, 0, 0), "text/plain", []byte("hi"), false)
 	if w.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("status = %d, want 415", w.Code)
 	}
@@ -148,7 +148,7 @@ func TestUnsupportedContentType(t *testing.T) {
 
 func TestSinkErrorIs500(t *testing.T) {
 	sink := &countSink{err: errors.New("disk full")}
-	w := post(t, NewHandler(sink, openResolver), ctJSON, fixture(t, "pydantic_ai_chat.json"), false)
+	w := post(t, NewHandler(sink, openResolver, 0, 0), ctJSON, fixture(t, "pydantic_ai_chat.json"), false)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500", w.Code)
 	}
@@ -194,7 +194,7 @@ func TestFixtureRoundTrip(t *testing.T) {
 
 func TestIngestAuth(t *testing.T) {
 	sink := &countSink{}
-	h := NewHandler(sink, openResolver)
+	h := NewHandler(sink, openResolver, 0, 0)
 
 	// Valid key routes to its project.
 	req := httptest.NewRequest(http.MethodPost, "/v1/traces", bytes.NewReader(fixture(t, "pydantic_ai_chat.json")))

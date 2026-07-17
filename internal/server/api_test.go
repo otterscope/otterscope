@@ -25,7 +25,7 @@ func testServer(t *testing.T) (*Server, *store.Store) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
-	return New(st, pricing.Default(), evals.Endpoint{}, 0, false, "test"), st
+	return New(st, pricing.Default(), evals.Endpoint{}, 0, false, 0, 0, "test"), st
 }
 
 func seedRun(t *testing.T, st *store.Store, id string, startSec int64) {
@@ -368,7 +368,7 @@ func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 func TestReadAuth(t *testing.T) {
 	_, st := testServer(t)
 	seedRun(t, st, "r1", 1000)
-	authed := New(st, pricing.Default(), evals.Endpoint{}, 0, true, "test")
+	authed := New(st, pricing.Default(), evals.Endpoint{}, 0, true, 0, 0, "test")
 	h := authed.authWrap(authed.uiHandler())
 	tok, _ := st.CreateReadToken(context.Background(), "script")
 
