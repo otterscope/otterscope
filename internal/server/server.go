@@ -79,6 +79,7 @@ func (s *Server) Run(ctx context.Context, uiAddr, otlpAddr string) error {
 
 func (s *Server) uiHandler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /metrics", s.handleMetrics)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.version})
 	})
@@ -156,8 +157,8 @@ func (s *Server) authWrap(h http.Handler) http.Handler {
 
 // authProtected reports whether a path needs a read token under -read-auth.
 func authProtected(path string) bool {
-	if path == "/healthz" || strings.HasPrefix(path, "/api/shared/") {
-		return false // health + public shares stay open
+	if path == "/healthz" || path == "/metrics" || strings.HasPrefix(path, "/api/shared/") {
+		return false // health, metrics, and public shares stay open
 	}
 	return strings.HasPrefix(path, "/api/") || path == "/mcp"
 }
