@@ -94,6 +94,8 @@ Otterscope is Apache-2.0, installs in one command, and is built for individuals 
 
 Go backend, embedded React UI. `go build ./...` works without building the frontend; `cd web && npm run build` embeds the real UI. See [CLAUDE.md](CLAUDE.md) for architecture and [docs/WORKFLOW.md](docs/WORKFLOW.md) for the contribution process.
 
+Contributions are welcome and there's nothing to sign — no CLA, no copyright assignment. Issues tagged [good first issue](https://github.com/otterscope/otterscope/labels/good%20first%20issue) are scoped small on purpose: each one names the file and line, what's wrong, and what "done" looks like.
+
 ## License
 
 [Apache-2.0](LICENSE)
