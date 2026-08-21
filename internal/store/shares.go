@@ -64,8 +64,12 @@ func (s *Store) SharesForRun(ctx context.Context, project, runID string) ([]Shar
 
 // DeleteShare revokes a share token.
 func (s *Store) DeleteShare(ctx context.Context, token string) error {
-	if _, err := s.writer.ExecContext(ctx, `DELETE FROM shared_runs WHERE token = ?`, token); err != nil {
+	res, err := s.writer.ExecContext(ctx, `DELETE FROM shared_runs WHERE token = ?`, token)
+	if err != nil {
 		return err
+	}
+	if err := deleted(res); err != nil {
+		return err // ErrNotFound: nothing was revoked, so nothing to audit
 	}
 	s.audit(ctx, "delete", "share", shortToken(token))
 	return nil

@@ -3,6 +3,9 @@ package server
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -93,7 +96,7 @@ type toolJSON struct {
 // handleGetRun serves GET /api/runs/{id}.
 func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 	run, steps, err := s.st.GetRun(r.Context(), r.PathValue("id"))
-	if err == store.ErrNotFound {
+	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "run not found"})
 		return
 	}
@@ -157,7 +160,7 @@ func stepsToJSON(run model.Run, steps []model.Step) []stepJSON {
 func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	run, _, err := s.st.GetRun(r.Context(), id)
-	if err == store.ErrNotFound {
+	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "run not found"})
 		return
 	}
@@ -177,8 +180,8 @@ func (s *Server) handleCreateShare(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleListShares(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	run, _, err := s.st.GetRun(r.Context(), id)
-	if err == store.ErrNotFound {
-		writeJSON(w, http.StatusOK, map[string]any{"shares": []store.Share{}})
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "run not found"})
 		return
 	}
 	if err != nil {
@@ -198,11 +201,7 @@ func (s *Server) handleListShares(w http.ResponseWriter, r *http.Request) {
 
 // handleDeleteShare serves DELETE /api/shares/{token}.
 func (s *Server) handleDeleteShare(w http.ResponseWriter, r *http.Request) {
-	if err := s.st.DeleteShare(r.Context(), r.PathValue("token")); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "revoke failed"})
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	writeDeleteResult(w, "revoke", s.st.DeleteShare(r.Context(), r.PathValue("token")))
 }
 
 // handleSharedRun serves the public GET /api/shared/{token}: exactly one run,
@@ -269,11 +268,7 @@ func (s *Server) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 
 // handleDeleteToken serves DELETE /api/tokens/{token}.
 func (s *Server) handleDeleteToken(w http.ResponseWriter, r *http.Request) {
-	if err := s.st.DeleteReadToken(r.Context(), r.PathValue("token")); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "revoke failed"})
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	writeDeleteResult(w, "revoke", s.st.DeleteReadToken(r.Context(), r.PathValue("token")))
 }
 
 // handleListViews serves GET /api/views.
@@ -305,7 +300,7 @@ func (s *Server) handleCreateView(w http.ResponseWriter, r *http.Request) {
 	}
 	view, err := s.st.CreateSavedView(r.Context(), body.Name, body.Params)
 	if err != nil {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		writeStoreError(w, "create view", err, fmt.Sprintf("a view named %q already exists", body.Name))
 		return
 	}
 	writeJSON(w, http.StatusCreated, view)
@@ -318,11 +313,7 @@ func (s *Server) handleDeleteView(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad id"})
 		return
 	}
-	if err := s.st.DeleteSavedView(r.Context(), id); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	writeDeleteResult(w, "delete", s.st.DeleteSavedView(r.Context(), id))
 }
 
 // handleListAssertions serves GET /api/assertions?project=.
@@ -356,7 +347,7 @@ func (s *Server) handleCreateAssertion(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := s.st.CreateAssertion(r.Context(), a)
 	if err != nil {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		writeStoreError(w, "create assertion", err, fmt.Sprintf("an assertion named %q already exists in this project", a.Name))
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -369,11 +360,7 @@ func (s *Server) handleDeleteAssertion(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad id"})
 		return
 	}
-	if err := s.st.DeleteAssertion(r.Context(), id); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
+	writeDeleteResult(w, "delete", s.st.DeleteAssertion(r.Context(), id))
 }
 
 // handleEvaluate serves POST /api/assertions/evaluate?project= — on-demand
@@ -385,7 +372,8 @@ func (s *Server) handleEvaluate(w http.ResponseWriter, r *http.Request) {
 	}
 	n, err := ingest.EvaluateProject(r.Context(), s.st, s.judge, project)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		slog.Error("api: evaluate project", "project", project, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "evaluation failed"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"runsEvaluated": n})
@@ -396,7 +384,11 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 	limit := queryInt(r, "limit", 50, 1, 500)
 	offset := queryInt(r, "offset", 0, 0, 1<<30)
 
-	runs, err := s.st.ListRuns(r.Context(), parseFilter(r), limit, offset)
+	filter, ok := filterFromRequest(w, r)
+	if !ok {
+		return
+	}
+	runs, err := s.st.ListRuns(r.Context(), filter, limit, offset)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
 		return
@@ -408,8 +400,12 @@ func (s *Server) handleListRuns(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"runs": out})
 }
 
-// parseFilter reads the shared run-filter query params.
-func parseFilter(r *http.Request) store.Filter {
+// parseFilter reads the shared run-filter query params. A malformed
+// timestamp is an error rather than a silently dropped constraint: returning
+// the unfiltered set for a typo'd bound is indistinguishable from a genuinely
+// wide window, and the compare view would show two windows that aren't the
+// ones asked for.
+func parseFilter(r *http.Request) (store.Filter, error) {
 	q := r.URL.Query()
 	f := store.Filter{
 		Project: q.Get("project"),
@@ -419,23 +415,47 @@ func parseFilter(r *http.Request) store.Filter {
 		Prompt:  q.Get("prompt"),
 		Query:   q.Get("q"),
 	}
-	if v := q.Get("since"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			f.Since = t
-		}
+	var err error
+	if f.Since, err = parseBound(q.Get("since")); err != nil {
+		return store.Filter{}, fmt.Errorf("since: %w", err)
 	}
-	if v := q.Get("until"); v != "" {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			f.Until = t
-		}
+	if f.Until, err = parseBound(q.Get("until")); err != nil {
+		return store.Filter{}, fmt.Errorf("until: %w", err)
 	}
-	return f
+	return f, nil
+}
+
+// parseBound parses one RFC 3339 filter bound. Empty means "no constraint".
+func parseBound(v string) (time.Time, error) {
+	if v == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%q is not an RFC 3339 timestamp (e.g. 2026-08-21T09:00:00Z)", v)
+	}
+	return t, nil
+}
+
+// filterFromRequest parses the filter, writing a 400 and reporting false when
+// it is malformed.
+func filterFromRequest(w http.ResponseWriter, r *http.Request) (store.Filter, bool) {
+	f, err := parseFilter(r)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return store.Filter{}, false
+	}
+	return f, true
 }
 
 // handleStats serves GET /api/stats with the same filter params as
 // /api/runs — the compare view calls it once per side.
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.st.GetStats(r.Context(), parseFilter(r))
+	filter, ok := filterFromRequest(w, r)
+	if !ok {
+		return
+	}
+	stats, err := s.st.GetStats(r.Context(), filter)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
 		return
@@ -446,13 +466,33 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stats)
 }
 
-// handleRunsCSV serves GET /api/runs.csv — the filtered run set as CSV
-// (export cap 10k; narrow filters for more).
+// csvExportLimit caps a CSV export. Hitting it is reported to the caller —
+// a truncated export that looks complete makes every number computed from it
+// quietly wrong.
+// var, not const, so tests can lower it without seeding ten thousand runs.
+var csvExportLimit = 10000
+
+// handleRunsCSV serves GET /api/runs.csv — the filtered run set as CSV,
+// capped at csvExportLimit rows. When the cap is hit the response carries
+// X-Otterscope-Truncated: true and the row count in
+// X-Otterscope-Row-Limit, and the UI warns; narrow the filter for more.
 func (s *Server) handleRunsCSV(w http.ResponseWriter, r *http.Request) {
-	runs, err := s.st.ListRuns(r.Context(), parseFilter(r), 10000, 0)
+	filter, ok := filterFromRequest(w, r)
+	if !ok {
+		return
+	}
+	// One past the cap tells us whether more matched, without paying for them.
+	runs, err := s.st.ListRuns(r.Context(), filter, csvExportLimit+1, 0)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
 		return
+	}
+	truncated := len(runs) > csvExportLimit
+	if truncated {
+		runs = runs[:csvExportLimit]
+		w.Header().Set("X-Otterscope-Truncated", "true")
+		w.Header().Set("X-Otterscope-Row-Limit", strconv.Itoa(csvExportLimit))
+		w.Header().Set("Access-Control-Expose-Headers", "X-Otterscope-Truncated, X-Otterscope-Row-Limit")
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="otterscope-runs.csv"`)
@@ -509,7 +549,7 @@ func (s *Server) handleCreateAlert(w http.ResponseWriter, r *http.Request) {
 	}
 	created, err := s.st.CreateAlert(r.Context(), rule)
 	if err != nil {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		writeStoreError(w, "create alert", err, fmt.Sprintf("an alert named %q already exists in this project", rule.Name))
 		return
 	}
 	writeJSON(w, http.StatusCreated, created)
@@ -522,8 +562,29 @@ func (s *Server) handleDeleteAlert(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad id"})
 		return
 	}
-	if err := s.st.DeleteAlert(r.Context(), id); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
+	writeDeleteResult(w, "delete", s.st.DeleteAlert(r.Context(), id))
+}
+
+// writeStoreError maps a store error to the response the client should see.
+// Only a uniqueness violation is a conflict; anything else is ours, so the
+// client gets a generic message and the detail goes to the log.
+func writeStoreError(w http.ResponseWriter, op string, err error, conflict string) {
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+	case errors.Is(err, store.ErrConflict):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": conflict})
+	default:
+		slog.Error("api: "+op, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": op + " failed"})
+	}
+}
+
+// writeDeleteResult answers a DELETE: 204 when a row went away, 404 when
+// there was nothing to delete.
+func writeDeleteResult(w http.ResponseWriter, op string, err error) {
+	if err != nil {
+		writeStoreError(w, op, err, "already exists")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

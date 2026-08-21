@@ -22,7 +22,7 @@ func (s *Store) CreateSavedView(ctx context.Context, name string, params json.Ra
 		`INSERT INTO saved_views (name, params, created_ns) VALUES (?,?,?)`,
 		name, string(params), time.Now().UnixNano())
 	if err != nil {
-		return SavedView{}, err
+		return SavedView{}, classifyWrite(err)
 	}
 	id, _ := res.LastInsertId()
 	s.audit(ctx, "create", "view", name)
@@ -52,7 +52,11 @@ func (s *Store) ListSavedViews(ctx context.Context) ([]SavedView, error) {
 
 // DeleteSavedView removes a view.
 func (s *Store) DeleteSavedView(ctx context.Context, id int64) error {
-	if _, err := s.writer.ExecContext(ctx, `DELETE FROM saved_views WHERE id = ?`, id); err != nil {
+	res, err := s.writer.ExecContext(ctx, `DELETE FROM saved_views WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if err := deleted(res); err != nil {
 		return err
 	}
 	s.audit(ctx, "delete", "view", itoa64(id))

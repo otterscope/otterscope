@@ -32,7 +32,7 @@ func (s *Store) CreateAlert(ctx context.Context, r Rule) (Rule, error) {
 		VALUES (?,?,?,?,?,?,?,?,?)`,
 		r.Project, r.Name, r.Type, r.Threshold, r.WindowSecs, r.Config, r.WebhookURL, r.Enabled, time.Now().UnixNano())
 	if err != nil {
-		return Rule{}, err
+		return Rule{}, classifyWrite(err)
 	}
 	r.ID, _ = res.LastInsertId()
 	s.audit(ctx, "create", "alert", r.Name)
@@ -89,7 +89,11 @@ func (s *Store) SetAlertFiring(ctx context.Context, id int64, firing bool) error
 
 // DeleteAlert removes an alert.
 func (s *Store) DeleteAlert(ctx context.Context, id int64) error {
-	if _, err := s.writer.ExecContext(ctx, `DELETE FROM alerts WHERE id = ?`, id); err != nil {
+	res, err := s.writer.ExecContext(ctx, `DELETE FROM alerts WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+	if err := deleted(res); err != nil {
 		return err
 	}
 	s.audit(ctx, "delete", "alert", itoa64(id))

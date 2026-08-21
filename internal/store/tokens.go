@@ -54,7 +54,11 @@ func (s *Store) ListReadTokens(ctx context.Context) ([]ReadToken, error) {
 
 // DeleteReadToken revokes a read token.
 func (s *Store) DeleteReadToken(ctx context.Context, token string) error {
-	if _, err := s.writer.ExecContext(ctx, `DELETE FROM read_tokens WHERE token = ?`, token); err != nil {
+	res, err := s.writer.ExecContext(ctx, `DELETE FROM read_tokens WHERE token = ?`, token)
+	if err != nil {
+		return err
+	}
+	if err := deleted(res); err != nil {
 		return err
 	}
 	s.audit(ctx, "delete", "token", shortToken(token))

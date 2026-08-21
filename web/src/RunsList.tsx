@@ -16,6 +16,7 @@ export default function RunsList({
 }) {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [filters, setFilters] = useState<FilterState>(filtersFromURL);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
   const tick = useLiveTick();
 
   // RunsList owns the filter state (so saved views can drive it); keep the
@@ -36,8 +37,20 @@ export default function RunsList({
   }, [filters, tick]);
 
   const exportCsv = async () => {
+    setExportNotice(null);
     const res = await apiFetch(`/api/runs.csv?${filtersToQuery(filters)}`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      setExportNotice("Export failed.");
+      return;
+    }
+    // The server caps the export; say so, because a truncated CSV that looks
+    // complete makes anything computed from it quietly wrong.
+    if (res.headers.get("X-Otterscope-Truncated") === "true") {
+      const limit = res.headers.get("X-Otterscope-Row-Limit") ?? "the export limit";
+      setExportNotice(
+        `More runs matched than could be exported — this file holds the newest ${limit}. Narrow the filters for the rest.`,
+      );
+    }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -63,6 +76,11 @@ export default function RunsList({
           export CSV
         </button>
       </div>
+      {exportNotice && (
+        <p className="export-notice" role="status">
+          {exportNotice}
+        </p>
+      )}
       {runs === null && <p className="hint">loading…</p>}
       {runs !== null && runs.length === 0 && (
         <div className="empty">
