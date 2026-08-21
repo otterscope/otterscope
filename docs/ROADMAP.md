@@ -25,4 +25,7 @@ The release pipeline itself is built early (during M1, exercised with `v0.0.x` p
 ## Later / explicitly deferred
 - DuckDB/Parquet analytics sidecar for large volumes (ADR-0002 keeps SQLite until proven insufficient)
 - OTLP/gRPC receiver (HTTP covers the ecosystem; gRPC on demand)
-- Alerting/webhooks, prompt management, multi-user auth/RBAC, managed cloud offering
+- Alerting/webhooks, prompt management, multi-user auth/RBAC
+
+## Never
+Hosted/managed Otterscope, paid tiers, usage metering, seat fees. Otterscope is software you run; see ADR-0005.
