@@ -5,6 +5,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -68,7 +69,7 @@ func Registry(st *store.Store) []Tool {
 					return "", fmt.Errorf("id is required")
 				}
 				run, steps, err := st.GetRun(ctx, id)
-				if err == store.ErrNotFound {
+				if errors.Is(err, store.ErrNotFound) {
 					return "", fmt.Errorf("run %q not found", id)
 				}
 				if err != nil {

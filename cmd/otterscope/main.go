@@ -68,6 +68,27 @@ func main() {
 	}
 }
 
+// loadConfig resolves the effective configuration the same way for every
+// subcommand: a -config flag, else OTTERSCOPE_CONFIG, then the file, then
+// OTTERSCOPE_* env vars. Explicit flags override the result afterwards.
+func loadConfig(args []string) (config.Config, string, error) {
+	configPath := scanArg(args, "config")
+	if configPath == "" {
+		configPath = os.Getenv("OTTERSCOPE_CONFIG")
+	}
+	cfg, err := config.Load(configPath, os.Getenv)
+	return cfg, configPath, err
+}
+
+// dbFlags registers the flags every subcommand shares, defaulting -db to the
+// configured database rather than a hardcoded filename. Without this a
+// subcommand run against a configured deployment silently creates and
+// operates on an empty ./otterscope.db (#97).
+func dbFlags(fs *flag.FlagSet, cfg config.Config, configPath string) *string {
+	fs.String("config", configPath, "path to a JSON config file (or OTTERSCOPE_CONFIG)")
+	return fs.String("db", cfg.DB, "path to the SQLite database file (or OTTERSCOPE_DB / config)")
+}
+
 // scanArg returns the value of -name/--name from args, or "" if absent.
 func scanArg(args []string, name string) string {
 	for i, a := range args {
@@ -106,18 +127,13 @@ func serve(args []string) error {
 	// Resolve defaults from a config file (-config or OTTERSCOPE_CONFIG) and
 	// OTTERSCOPE_* env vars; explicit flags below then override them, giving
 	// precedence flags > env > file > built-in defaults.
-	configPath := scanArg(args, "config")
-	if configPath == "" {
-		configPath = os.Getenv("OTTERSCOPE_CONFIG")
-	}
-	cfg, err := config.Load(configPath, os.Getenv)
+	cfg, configPath, err := loadConfig(args)
 	if err != nil {
 		return err
 	}
 
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
-	fs.String("config", configPath, "path to a JSON config file (or OTTERSCOPE_CONFIG)")
-	dbPath := fs.String("db", cfg.DB, "path to the SQLite database file")
+	dbPath := dbFlags(fs, cfg, configPath)
 	uiAddr := fs.String("listen", cfg.Listen, "address for the web UI and API (loopback by default; use :8317 to expose)")
 	otlpAddr := fs.String("otlp", cfg.OTLP, "address for the OTLP/HTTP receiver (loopback by default; use :4318 to expose)")
 	pricingPath := fs.String("pricing", cfg.Pricing, "JSON file of pricing overrides, merged over built-in rates")
@@ -187,9 +203,13 @@ func sweepLoop(ctx context.Context, st *store.Store, keep time.Duration) {
 }
 
 func renormalizeCmd(args []string) error {
+	cfg, configPath, err := loadConfig(args)
+	if err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("renormalize", flag.ExitOnError)
-	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
-	pricingPath := fs.String("pricing", "", "JSON file of pricing overrides, merged over built-in rates")
+	dbPath := dbFlags(fs, cfg, configPath)
+	pricingPath := fs.String("pricing", cfg.Pricing, "JSON file of pricing overrides, merged over built-in rates")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -218,8 +238,12 @@ func renormalizeCmd(args []string) error {
 }
 
 func backupCmd(args []string) error {
+	cfg, configPath, err := loadConfig(args)
+	if err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("backup", flag.ExitOnError)
-	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
+	dbPath := dbFlags(fs, cfg, configPath)
 	out := fs.String("o", "", "destination file for the backup (required; must not exist)")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -245,8 +269,12 @@ func tokenCmd(args []string) error {
 		return fmt.Errorf("usage: otterscope token [add <name> | list] [-db path]")
 	}
 	sub := args[0]
+	cfg, configPath, err := loadConfig(args)
+	if err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("token", flag.ExitOnError)
-	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
+	dbPath := dbFlags(fs, cfg, configPath)
 	rest := args[1:]
 	var name string
 	if sub == "add" {
@@ -288,8 +316,12 @@ func tokenCmd(args []string) error {
 }
 
 func sampleCmd(args []string) error {
+	cfg, configPath, err := loadConfig(args)
+	if err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("sample", flag.ExitOnError)
-	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
+	dbPath := dbFlags(fs, cfg, configPath)
 	n := fs.Int("runs", 60, "number of sample runs to create")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -312,8 +344,12 @@ func projectCmd(args []string) error {
 		return fmt.Errorf("usage: otterscope project [add <name> | list] [-db path]")
 	}
 	sub := args[0]
+	cfg, configPath, err := loadConfig(args)
+	if err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("project", flag.ExitOnError)
-	dbPath := fs.String("db", "otterscope.db", "path to the SQLite database file")
+	dbPath := dbFlags(fs, cfg, configPath)
 	rest := args[1:]
 	var name string
 	if sub == "add" {

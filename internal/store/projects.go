@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -63,7 +64,7 @@ func (s *Store) ProjectForKey(ctx context.Context, key string) (string, bool) {
 	var name string
 	err := s.reader.QueryRowContext(ctx,
 		`SELECT name FROM projects WHERE ingest_key = ?`, key).Scan(&name)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", false
 	}
 	if err != nil {

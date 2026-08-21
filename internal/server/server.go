@@ -180,8 +180,13 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 const placeholderHTML = `<!doctype html>
 <meta charset="utf-8">
 <title>Otterscope</title>
-<style>body{font-family:system-ui;display:grid;place-items:center;min-height:100vh;margin:0;background:#0f1419;color:#e6e1cf}p{color:#8a919c}</style>
-<div style="text-align:center">
-  <h1>🦦 Otterscope</h1>
-  <p>Lightweight, self-hosted observability for AI agents.<br>UI arrives in milestone M2 — the OTLP receiver lands in M1.</p>
+<style>body{font-family:system-ui;display:grid;place-items:center;min-height:100vh;margin:0;background:#0f1419;color:#e6e1cf;line-height:1.6}p{color:#8a919c;margin:.4em 0}code{background:#1c2430;padding:.15em .4em;border-radius:4px;color:#e6e1cf}a{color:#5ccfe6}</style>
+<div style="text-align:center;max-width:34rem;padding:1.5rem">
+  <h1>&#129450; Otterscope</h1>
+  <p>The server is running &mdash; this binary was just built without the embedded web UI.</p>
+  <p>The OTLP receiver and the API work normally: point your agent at the OTLP
+     endpoint and query <code>/api/runs</code> or <code>/mcp</code>.</p>
+  <p>To get the UI, install a <a href="https://github.com/otterscope/otterscope/releases">release binary</a>
+     or the Docker image, or build the frontend first:<br>
+     <code>cd web &amp;&amp; npm run build</code> then rebuild.</p>
 </div>`

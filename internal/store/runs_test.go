@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -187,7 +188,7 @@ func TestListRunsNewestFirst(t *testing.T) {
 
 func TestGetRunNotFound(t *testing.T) {
 	st := openTest(t)
-	if _, _, err := st.GetRun(context.Background(), "nope"); err != ErrNotFound {
+	if _, _, err := st.GetRun(context.Background(), "nope"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("err = %v, want ErrNotFound", err)
 	}
 }

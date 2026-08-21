@@ -40,18 +40,23 @@ type Watcher struct {
 	interval time.Duration
 	client   *http.Client
 	now      func() time.Time
-	stop     chan struct{}
-	wg       sync.WaitGroup
+	// ctx bounds every evaluation cycle and the webhook POSTs inside it, so
+	// Stop cancels in-flight work instead of waiting on a hung endpoint.
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // NewWatcher creates a watcher evaluating every interval.
 func NewWatcher(st Store, interval time.Duration) *Watcher {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Watcher{
 		st:       st,
 		interval: interval,
 		client:   &http.Client{Timeout: 10 * time.Second},
 		now:      time.Now,
-		stop:     make(chan struct{}),
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 }
 
@@ -64,10 +69,10 @@ func (w *Watcher) Start() {
 		defer tick.Stop()
 		for {
 			select {
-			case <-w.stop:
+			case <-w.ctx.Done():
 				return
 			case <-tick.C:
-				ctx, cancel := context.WithTimeout(context.Background(), w.interval)
+				ctx, cancel := context.WithTimeout(w.ctx, w.interval)
 				w.evaluateOnce(ctx)
 				cancel()
 			}
@@ -75,9 +80,10 @@ func (w *Watcher) Start() {
 	}()
 }
 
-// Stop halts the loop and waits for the in-flight evaluation to finish.
+// Stop cancels any in-flight evaluation (including its webhook POSTs) and
+// waits for the loop to exit.
 func (w *Watcher) Stop() {
-	close(w.stop)
+	w.cancel()
 	w.wg.Wait()
 }
 
@@ -115,12 +121,12 @@ func (w *Watcher) evaluateOnce(ctx context.Context) {
 		}
 		switch {
 		case firing && !r.Firing:
-			w.notify(r, "firing", detail)
+			w.notify(ctx, r, "firing", detail)
 			if err := w.st.SetAlertFiring(ctx, r.ID, true); err != nil {
 				slog.Error("alerts: set firing failed", "alert", r.Name, "err", err)
 			}
 		case !firing && r.Firing:
-			w.notify(r, "resolved", detail)
+			w.notify(ctx, r, "resolved", detail)
 			if err := w.st.SetAlertFiring(ctx, r.ID, false); err != nil {
 				slog.Error("alerts: clear firing failed", "alert", r.Name, "err", err)
 			}
@@ -132,7 +138,9 @@ func (w *Watcher) evaluateOnce(ctx context.Context) {
 // possible future manual trigger).
 func (w *Watcher) EvaluateOnce(ctx context.Context) { w.evaluateOnce(ctx) }
 
-func (w *Watcher) notify(r store.Rule, status, detail string) {
+// notify POSTs the webhook under ctx, so a hung endpoint cannot outlive the
+// evaluation cycle (and therefore cannot stall shutdown past it).
+func (w *Watcher) notify(ctx context.Context, r store.Rule, status, detail string) {
 	n := Notification{
 		Alert:   r.Name,
 		Project: r.Project,
@@ -143,7 +151,7 @@ func (w *Watcher) notify(r store.Rule, status, detail string) {
 		FiredAt: w.now().UTC().Format(time.RFC3339),
 	}
 	payload := webhookPayload(r.WebhookURL, n)
-	req, err := http.NewRequest(http.MethodPost, r.WebhookURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.WebhookURL, bytes.NewReader(payload))
 	if err != nil {
 		slog.Error("alerts: bad webhook url", "alert", r.Name, "err", err)
 		return

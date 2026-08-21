@@ -17,7 +17,7 @@ func (s *Store) CreateAssertion(ctx context.Context, a evals.Assertion) (evals.A
 		 VALUES (?,?,?,?,?,?)`,
 		a.Project, a.Name, a.Type, a.Config, a.Enabled, time.Now().UnixNano())
 	if err != nil {
-		return evals.Assertion{}, err
+		return evals.Assertion{}, classifyWrite(err)
 	}
 	a.ID, _ = res.LastInsertId()
 	s.audit(ctx, "create", "assertion", a.Name)
@@ -58,8 +58,12 @@ func (s *Store) DeleteAssertion(ctx context.Context, id int64) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM assertion_results WHERE assertion_id = ?`, id); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM assertions WHERE id = ?`, id); err != nil {
+	res, err := tx.ExecContext(ctx, `DELETE FROM assertions WHERE id = ?`, id)
+	if err != nil {
 		return err
+	}
+	if err := deleted(res); err != nil {
+		return err // rolls back the results delete too
 	}
 	if err := tx.Commit(); err != nil {
 		return err

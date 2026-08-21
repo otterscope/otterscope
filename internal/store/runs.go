@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -271,8 +272,41 @@ func ftsQuery(q string) string {
 	return strings.Join(fields, " ")
 }
 
-// ErrNotFound is returned by GetRun for unknown run IDs.
-var ErrNotFound = sql.ErrNoRows
+// ErrNotFound means the requested row does not exist. It is a distinct
+// sentinel (not an alias for sql.ErrNoRows) so callers must use errors.Is and
+// so wrapping an error in the store cannot silently turn a 404 into a 500.
+var ErrNotFound = errors.New("not found")
+
+// ErrConflict means the write lost to a uniqueness constraint — a duplicate
+// name, not an internal failure. Callers map it to 409; everything else is a
+// 500.
+var ErrConflict = errors.New("conflict")
+
+// classifyWrite maps a SQLite write error to ErrConflict when it is a
+// uniqueness violation, so the SQLite-specific detection stays in this
+// package. Any other error is returned unchanged.
+func classifyWrite(err error) error {
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+		return fmt.Errorf("%w: %s", ErrConflict, err)
+	}
+	return err
+}
+
+// deleted reports ErrNotFound when a DELETE matched no rows, so callers can
+// tell "revoked it" from "there was nothing to revoke".
+func deleted(res sql.Result) error {
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
 
 // GetRun returns a run and its steps ordered by start time. Trace ID can
 // exist in more than one project (forging can't overwrite, only coexist);
@@ -300,6 +334,9 @@ func (s *Store) getRun(ctx context.Context, where string, args ...any) (model.Ru
 		Scan(&r.ID, &r.Project, &r.Service, &r.AgentName, &status, &startNS, &endNS,
 			&r.InputTokens, &r.OutputTokens, &r.LLMCalls, &r.ToolCalls, &r.Models, &r.Prompts,
 			&cost, &r.CostPartial, &r.Error)
+	if errors.Is(err, sql.ErrNoRows) {
+		return model.Run{}, nil, ErrNotFound
+	}
 	if err != nil {
 		return model.Run{}, nil, err
 	}
