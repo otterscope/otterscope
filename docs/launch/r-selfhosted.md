@@ -19,7 +19,8 @@ your prompts to a SaaS — I built Otterscope for exactly that.
   compare view.
 - **Retention:** unlimited by default (it's your disk); optional
   `-retention` sweep if you want cleanup.
-- Apache-2.0. Multi-project ingest keys if you run several agents.
+- Apache-2.0, no paid tier and no hosted version. Multi-project ingest
+  keys if you run several agents.
 
 Compared to Langfuse self-hosted (which is solid but wants
 Postgres + ClickHouse + Redis + S3), this is deliberately the

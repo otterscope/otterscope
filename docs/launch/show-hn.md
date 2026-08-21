@@ -26,8 +26,8 @@ Design choices that might interest HN:
   and an explicit "partial" flag rather than a fabricated total.
 - Judge evals call any OpenAI-compatible endpoint with a key from your
   env — keys never touch the database.
-- Apache-2.0, no metering, no seat fees. If it ever grows a paid thing it
-  will be managed hosting, never features clawed back.
+- Apache-2.0, no metering, no seat fees, no paid tier and no hosted
+  version planned — there's nothing to upsell you to.
 
 Repo: https://github.com/otterscope/otterscope
 

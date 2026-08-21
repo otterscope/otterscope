@@ -81,7 +81,7 @@ They're good products aimed at a different deployment reality:
 - **LangSmith** and **Braintrust** gate self-hosting behind enterprise contracts.
 - **Phoenix** is ELv2-licensed with an upsell funnel.
 
-Otterscope is Apache-2.0, installs in one command, and is built for individuals and small teams whose traces contain customer data they'd rather keep on their own disk.
+Otterscope is Apache-2.0, installs in one command, and is built for individuals and small teams whose traces contain customer data they'd rather keep on their own disk. There is no paid tier, no hosted version, no metering and no seat fees — every feature is in the binary you just downloaded ([ADR-0005](docs/adr/0005-no-hosted-or-paid-offering.md)).
 
 ## Install
 
