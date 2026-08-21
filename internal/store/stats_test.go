@@ -29,8 +29,8 @@ func TestGetStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st.SaveAssertionResults(ctx, "a", []evals.Result{{AssertionID: a.ID, Pass: true}})
-	st.SaveAssertionResults(ctx, "b", []evals.Result{{AssertionID: a.ID, Pass: false}})
+	st.SaveAssertionResults(ctx, "default", "a", []evals.Result{{AssertionID: a.ID, Pass: true}})
+	st.SaveAssertionResults(ctx, "default", "b", []evals.Result{{AssertionID: a.ID, Pass: false}})
 
 	stats, err := st.GetStats(ctx, Filter{})
 	if err != nil {

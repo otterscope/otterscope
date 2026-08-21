@@ -102,7 +102,7 @@ func (s *Store) GetStats(ctx context.Context, f Filter) (Stats, error) {
 		SELECT a.id, a.name, coalesce(sum(ar.pass), 0), count(*)
 		FROM assertion_results ar
 		JOIN assertions a ON a.id = ar.assertion_id
-		JOIN runs ON runs.id = ar.run_id`+
+		JOIN runs ON runs.id = ar.run_id AND runs.project = ar.project`+
 		// reuse the runs filter against the joined table
 		replaceRunsAlias(where)+`
 		GROUP BY a.id ORDER BY a.id`, args...)

@@ -33,10 +33,10 @@ func TestEvaluatorDrainsOnStop(t *testing.T) {
 
 	e := NewEvaluator(st, evals.Endpoint{})
 	e.Start()
-	e.Enqueue([]string{"r1"})
+	e.Enqueue([]RunRef{{Project: "default", ID: "r1"}})
 	e.Stop() // must block until the queued evaluation is persisted
 
-	results, err := st.ResultsForRun(ctx, "r1")
+	results, err := st.ResultsForRun(ctx, "default", "r1")
 	if err != nil {
 		t.Fatal(err)
 	}

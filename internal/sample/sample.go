@@ -62,7 +62,7 @@ func Seed(ctx context.Context, st *store.Store, n int) error {
 			{AssertionID: fast.ID, Pass: rng.Float64() > 0.1, Detail: ""},
 			{AssertionID: polite.ID, Pass: !failed || rng.Float64() > 0.5},
 		}
-		if err := st.SaveAssertionResults(ctx, runID, results); err != nil {
+		if err := st.SaveAssertionResults(ctx, steps[0].Project, runID, results); err != nil {
 			return err
 		}
 	}

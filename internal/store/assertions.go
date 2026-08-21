@@ -72,10 +72,16 @@ func (s *Store) DeleteAssertion(ctx context.Context, id int64) error {
 	return nil
 }
 
-// SaveAssertionResults upserts results for a run (idempotent by PK).
-func (s *Store) SaveAssertionResults(ctx context.Context, runID string, results []evals.Result) error {
+// SaveAssertionResults upserts results for one run in one project
+// (idempotent by PK). Project is required: a trace id alone does not identify
+// a run (#49), so keying results on it let one project's verdicts overwrite
+// another's (#98).
+func (s *Store) SaveAssertionResults(ctx context.Context, project, runID string, results []evals.Result) error {
 	if len(results) == 0 {
 		return nil
+	}
+	if project == "" {
+		project = "default"
 	}
 	tx, err := s.writer.BeginTx(ctx, nil)
 	if err != nil {
@@ -85,20 +91,25 @@ func (s *Store) SaveAssertionResults(ctx context.Context, runID string, results 
 	now := time.Now().UnixNano()
 	for _, r := range results {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT OR REPLACE INTO assertion_results (run_id, assertion_id, pass, detail, evaluated_ns)
-			 VALUES (?,?,?,?,?)`, runID, r.AssertionID, r.Pass, r.Detail, now); err != nil {
+			`INSERT OR REPLACE INTO assertion_results (project, run_id, assertion_id, pass, detail, evaluated_ns)
+			 VALUES (?,?,?,?,?,?)`, project, runID, r.AssertionID, r.Pass, r.Detail, now); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
 }
 
-// ResultsForRun returns a run's assertion results with assertion identity.
-func (s *Store) ResultsForRun(ctx context.Context, runID string) ([]evals.Result, error) {
+// ResultsForRun returns one run's assertion results with assertion identity,
+// scoped to its project so a colliding trace id in another project cannot
+// leak its verdicts here (#98).
+func (s *Store) ResultsForRun(ctx context.Context, project, runID string) ([]evals.Result, error) {
+	if project == "" {
+		project = "default"
+	}
 	rows, err := s.reader.QueryContext(ctx, `
 		SELECT r.assertion_id, a.name, a.type, r.pass, r.detail
 		FROM assertion_results r JOIN assertions a ON a.id = r.assertion_id
-		WHERE r.run_id = ? ORDER BY r.assertion_id`, runID)
+		WHERE r.project = ? AND r.run_id = ? ORDER BY r.assertion_id`, project, runID)
 	if err != nil {
 		return nil, err
 	}

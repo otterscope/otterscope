@@ -52,11 +52,17 @@ func TestAutoBackupBeforeMigrate(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Simulate being one migration behind so the next Open sees a pending
-	// migration on an existing (non-fresh) db. Re-applying a real migration
-	// fails (its objects already exist) — that's fine: the point is that the
-	// backup must be taken BEFORE the migration is attempted.
+	// migration on an existing (non-fresh) db. Re-applying it fails (its
+	// objects already exist) — that's fine: the point is that the backup must
+	// be taken BEFORE the migration is attempted.
+	//
+	// Drop the *first* migration's record, not the last: 0001 creates a table
+	// unconditionally, so re-applying it always fails. Whichever migration
+	// happens to be last is not guaranteed to — a table-rebuild migration
+	// drops and recreates its own objects, so it re-applies cleanly and this
+	// test would silently stop testing anything.
 	if _, err := st.DB().ExecContext(ctx,
-		`DELETE FROM schema_migrations WHERE name = (SELECT max(name) FROM schema_migrations)`); err != nil {
+		`DELETE FROM schema_migrations WHERE name = (SELECT min(name) FROM schema_migrations)`); err != nil {
 		t.Fatal(err)
 	}
 	st.Close()

@@ -18,13 +18,13 @@ import (
 type Evaluator struct {
 	st    *store.Store
 	judge evals.Endpoint
-	ch    chan []string
+	ch    chan []RunRef
 	wg    sync.WaitGroup
 }
 
 // NewEvaluator creates an unstarted evaluator with a bounded queue.
 func NewEvaluator(st *store.Store, judge evals.Endpoint) *Evaluator {
-	return &Evaluator{st: st, judge: judge, ch: make(chan []string, 256)}
+	return &Evaluator{st: st, judge: judge, ch: make(chan []RunRef, 256)}
 }
 
 // Start launches the worker. Call Stop before closing the store.
@@ -32,9 +32,9 @@ func (e *Evaluator) Start() {
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
-		for runIDs := range e.ch {
+		for refs := range e.ch {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			if err := EvaluateRuns(ctx, e.st, e.judge, runIDs, false); err != nil {
+			if err := EvaluateRuns(ctx, e.st, e.judge, refs, false); err != nil {
 				slog.Error("assertion evaluation failed", "err", err)
 			}
 			cancel()
@@ -45,12 +45,12 @@ func (e *Evaluator) Start() {
 // Enqueue schedules evaluation of the given runs. Non-blocking: if the queue
 // is full it drops the batch (deterministic assertions can be recovered via
 // the on-demand evaluate endpoint) rather than stalling ingest.
-func (e *Evaluator) Enqueue(runIDs []string) {
-	if len(runIDs) == 0 {
+func (e *Evaluator) Enqueue(refs []RunRef) {
+	if len(refs) == 0 {
 		return
 	}
 	select {
-	case e.ch <- runIDs:
+	case e.ch <- refs:
 	default:
 		slog.Warn("evaluator queue full; skipping assertion eval for a batch (use POST /api/assertions/evaluate to backfill)")
 	}

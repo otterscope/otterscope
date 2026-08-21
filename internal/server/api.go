@@ -104,7 +104,7 @@ func (s *Server) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
 		return
 	}
-	results, err := s.st.ResultsForRun(r.Context(), run.ID)
+	results, err := s.st.ResultsForRun(r.Context(), run.Project, run.ID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "query failed"})
 		return
