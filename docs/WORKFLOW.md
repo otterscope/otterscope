@@ -18,7 +18,7 @@ This is the operating procedure for all work on Otterscope, whether done by a hu
 ## 3. Before merging
 
 8. **Verify end-to-end, not just unit tests**: build the binary, run `otterscope serve`, exercise the changed behavior for real (send an OTLP payload, click through the UI change). Record what you did in the PR description ("Verified: …").
-9. **Quality gate**: `go build ./... && go vet ./... && go test ./...` (and `cd web && npm run build && npm test` if the frontend changed) must pass locally and in CI.
+9. **Quality gate**: `go build ./... && go vet ./... && go test ./...` (and `cd web && npm run lint && npm test && npm run build` if the frontend changed) must pass locally and in CI. CI runs all six, so a gate that passes locally is the gate that ran.
 10. **Update the paper trail in the same PR**: ADR if an architectural decision was made, `docs/ROADMAP.md` if scope/timeline shifted, `CLAUDE.md` if the architecture map changed, README if user-facing behavior changed.
 11. **PR → squash-merge to `main`**, referencing the issue (`Closes #N`). Delete the branch.
 

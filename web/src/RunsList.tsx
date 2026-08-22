@@ -1,11 +1,20 @@
 import { useEffect, useState } from "react";
-import { fmtCost, fmtDuration, fmtStart, fmtTokens, type Run, apiFetch } from "./api";
-import Filters, {
+import {
+  fmtCost,
+  fmtDuration,
+  fmtStart,
+  fmtTokens,
+  type Run,
+  apiFetch,
+  csvTruncationNotice,
+} from "./api";
+import Filters from "./Filters";
+import {
   filtersFromURL,
   filtersToQuery,
   syncURL,
   type FilterState,
-} from "./Filters";
+} from "./filters";
 import SavedViews from "./SavedViews";
 import { useLiveTick } from "./live";
 
@@ -43,14 +52,7 @@ export default function RunsList({
       setExportNotice("Export failed.");
       return;
     }
-    // The server caps the export; say so, because a truncated CSV that looks
-    // complete makes anything computed from it quietly wrong.
-    if (res.headers.get("X-Otterscope-Truncated") === "true") {
-      const limit = res.headers.get("X-Otterscope-Row-Limit") ?? "the export limit";
-      setExportNotice(
-        `More runs matched than could be exported — this file holds the newest ${limit}. Narrow the filters for the rest.`,
-      );
-    }
+    setExportNotice(csvTruncationNotice(res));
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

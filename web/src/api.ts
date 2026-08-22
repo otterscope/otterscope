@@ -89,6 +89,16 @@ export function fmtCost(usd?: number, partial?: boolean): string {
   return `${p}$${usd.toFixed(5)}`;
 }
 
+// The server caps CSV exports and flags a truncated one with a header
+// (see handleRunsCSV). Returns the message to show, or null when the export
+// is complete — a truncated file that looks whole makes anything computed
+// from it quietly wrong.
+export function csvTruncationNotice(res: Response): string | null {
+  if (res.headers.get("X-Otterscope-Truncated") !== "true") return null;
+  const limit = res.headers.get("X-Otterscope-Row-Limit") ?? "the export limit";
+  return `More runs matched than could be exported — this file holds the newest ${limit}. Narrow the filters for the rest.`;
+}
+
 const TOKEN_KEY = "otterscope_token";
 
 export function readToken(): string {
