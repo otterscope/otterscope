@@ -19,6 +19,7 @@ type Store interface {
 	ListEnabledAlerts(ctx context.Context) ([]store.Rule, error)
 	GetStats(ctx context.Context, f store.Filter) (store.Stats, error)
 	SetAlertFiring(ctx context.Context, id int64, firing bool) error
+	SetAlertPending(ctx context.Context, id int64, ns int64) error
 }
 
 // Notification is the JSON payload POSTed to an alert's webhook. It carries
@@ -119,6 +120,9 @@ func (w *Watcher) evaluateOnce(ctx context.Context) {
 		if !firable {
 			continue
 		}
+		if !w.settled(ctx, r, firing) {
+			continue
+		}
 		switch {
 		case firing && !r.Firing:
 			w.notify(ctx, r, "firing", detail)
@@ -132,6 +136,60 @@ func (w *Watcher) evaluateOnce(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// settled reports whether the rule may act on its current reading.
+//
+// Flap suppression is symmetric on purpose: the condition must hold its new
+// state for SettleSecs before we notify in either direction. Suppressing only
+// the firing edge still lets a value hovering at the threshold produce a
+// firing/resolved pair every SettleSecs; delaying the resolve too means a
+// genuinely oscillating metric produces nothing at all, which is the point.
+// The cost is that a real recovery is reported up to SettleSecs late, and
+// that is the safe direction to be wrong in.
+//
+// SettleSecs == 0 keeps the original behaviour: act on the first evaluation
+// that flips.
+func (w *Watcher) settled(ctx context.Context, r store.Rule, firing bool) bool {
+	if firing == r.Firing {
+		// Steady state. If a transition was pending it just flapped back, so
+		// the timer restarts from scratch next time.
+		if r.PendingSinceNS != 0 {
+			w.clearPending(ctx, r)
+		}
+		return false // nothing to notify either way
+	}
+	if r.SettleSecs <= 0 {
+		return true
+	}
+	now := w.now()
+	if r.PendingSinceNS == 0 {
+		if err := w.st.SetAlertPending(ctx, r.ID, now.UnixNano()); err != nil {
+			slog.Error("alerts: start settle timer failed", "alert", r.Name, "err", err)
+			return false
+		}
+		slog.Info("alert condition changed; waiting for it to settle",
+			"alert", r.Name, "to", stateName(firing), "settleSecs", r.SettleSecs)
+		return false
+	}
+	held := now.Sub(time.Unix(0, r.PendingSinceNS))
+	return held >= time.Duration(r.SettleSecs)*time.Second
+}
+
+func (w *Watcher) clearPending(ctx context.Context, r store.Rule) {
+	if err := w.st.SetAlertPending(ctx, r.ID, 0); err != nil {
+		slog.Error("alerts: clear settle timer failed", "alert", r.Name, "err", err)
+		return
+	}
+	slog.Info("alert condition flapped back before settling; not notifying",
+		"alert", r.Name, "settleSecs", r.SettleSecs)
+}
+
+func stateName(firing bool) string {
+	if firing {
+		return "firing"
+	}
+	return "resolved"
 }
 
 // EvaluateOnce runs a single evaluation cycle synchronously (for tests and a

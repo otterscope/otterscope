@@ -9,6 +9,9 @@ import (
 	"github.com/otterscope/otterscope/internal/store"
 )
 
+// maxSettleSecs bounds the flap-suppression window (24h).
+const maxSettleSecs = 24 * 60 * 60
+
 // Validate checks a rule's type/config/threshold before storing it.
 func Validate(r store.Rule) error {
 	if r.Name == "" {
@@ -19,6 +22,16 @@ func Validate(r store.Rule) error {
 	}
 	if r.WindowSecs <= 0 {
 		return fmt.Errorf("windowSecs must be positive")
+	}
+	if r.SettleSecs < 0 {
+		return fmt.Errorf("settleSecs cannot be negative")
+	}
+	// A day is far past any useful damping; a value this large is almost
+	// always milliseconds entered into a seconds field, and the rule would
+	// look armed while staying silent for a day.
+	if r.SettleSecs > maxSettleSecs {
+		return fmt.Errorf("settleSecs %d is over the %d second maximum (is that milliseconds?)",
+			r.SettleSecs, maxSettleSecs)
 	}
 	switch r.Type {
 	case "error_rate", "assertion_fail_rate":
