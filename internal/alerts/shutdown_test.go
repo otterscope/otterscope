@@ -25,7 +25,8 @@ func (h hangStore) GetStats(context.Context, store.Filter) (store.Stats, error) 
 	return store.Stats{Runs: 10, Errors: 10}, nil
 }
 
-func (h hangStore) SetAlertFiring(context.Context, int64, bool) error { return nil }
+func (h hangStore) SetAlertFiring(context.Context, int64, bool) error   { return nil }
+func (h hangStore) SetAlertPending(context.Context, int64, int64) error { return nil }
 
 // Stop must cancel an in-flight webhook rather than wait out the HTTP client
 // timeout (#104). Before the fix the POST was built with http.NewRequest, so

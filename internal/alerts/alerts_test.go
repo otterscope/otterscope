@@ -92,6 +92,18 @@ func (f *fakeStore) SetAlertFiring(_ context.Context, id int64, firing bool) err
 	for i := range f.rules {
 		if f.rules[i].ID == id {
 			f.rules[i].Firing = firing
+			f.rules[i].PendingSinceNS = 0 // mirrors the store: notifying clears the timer
+		}
+	}
+	return nil
+}
+
+func (f *fakeStore) SetAlertPending(_ context.Context, id int64, ns int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.rules {
+		if f.rules[i].ID == id {
+			f.rules[i].PendingSinceNS = ns
 		}
 	}
 	return nil

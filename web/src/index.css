@@ -101,6 +101,12 @@ table.runs .num {
   color: #7fd88f;
 }
 
+.badge.settling {
+  margin-left: 0.35rem;
+  background: #33280f;
+  color: #ffd580;
+}
+
 .badge.error {
   background: #3a1518;
   color: #ff8e8e;

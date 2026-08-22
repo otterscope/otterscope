@@ -12,6 +12,8 @@ type Alert = {
   webhookUrl: string;
   enabled: boolean;
   firing: boolean;
+  settleSecs: number;
+  pendingSinceNs?: number;
 };
 
 const TYPES = [
@@ -27,6 +29,16 @@ const WINDOWS = [
   { v: 86400, label: "24 hours" },
 ];
 
+// How long the condition must hold before we notify, in both directions. The
+// default is deliberately not "immediately": a metric sitting on the
+// threshold otherwise sends a firing/resolved pair every evaluation.
+const SETTLES = [
+  { v: 0, label: "notify immediately" },
+  { v: 300, label: "after 5 min" },
+  { v: 900, label: "after 15 min" },
+  { v: 3600, label: "after 1 hour" },
+];
+
 export default function Alerts() {
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [form, setForm] = useState({
@@ -34,6 +46,7 @@ export default function Alerts() {
     type: "error_rate",
     threshold: "0.1",
     windowSecs: 3600,
+    settleSecs: 300,
     config: "",
     webhookUrl: "",
   });
@@ -78,8 +91,10 @@ export default function Alerts() {
       <h2 className="compare-title">Alerts</h2>
       <p className="hint">
         Otterscope evaluates each rule over its window and notifies your
-        webhook when it starts (and stops) firing. Slack and Discord webhook
-        URLs are auto-formatted; anything else gets a JSON payload.
+        webhook when it starts (and stops) firing. A condition must hold for
+        its settle time before either notification is sent, so a value sitting
+        on the threshold does not page you twice a minute. Slack and Discord
+        webhook URLs are auto-formatted; anything else gets a JSON payload.
       </p>
 
       <div className="alert-form">
@@ -122,6 +137,17 @@ export default function Alerts() {
             </option>
           ))}
         </select>
+        <select
+          value={form.settleSecs}
+          title="How long the condition must hold before notifying, in both directions"
+          onChange={(e) => setForm({ ...form, settleSecs: Number(e.target.value) })}
+        >
+          {SETTLES.map((sv) => (
+            <option key={sv.v} value={sv.v}>
+              {sv.label}
+            </option>
+          ))}
+        </select>
         <input
           placeholder="webhook URL (Slack/Discord/…)"
           value={form.webhookUrl}
@@ -142,6 +168,7 @@ export default function Alerts() {
               <th>name</th>
               <th>condition</th>
               <th>window</th>
+              <th>settle</th>
               <th>webhook</th>
               <th></th>
             </tr>
@@ -153,6 +180,14 @@ export default function Alerts() {
                   <span className={`badge ${a.firing ? "error" : "ok"}`}>
                     {a.firing ? "firing" : "ok"}
                   </span>
+                  {a.pendingSinceNs ? (
+                    <span
+                      className="badge settling"
+                      title={`Condition changed; waiting ${a.settleSecs}s for it to hold before notifying`}
+                    >
+                      settling
+                    </span>
+                  ) : null}
                 </td>
                 <td>{a.name}</td>
                 <td>
@@ -160,6 +195,7 @@ export default function Alerts() {
                   {a.config && ` (${a.config})`} &gt; {a.threshold}
                 </td>
                 <td>{Math.round(a.windowSecs / 60)}m</td>
+                <td>{a.settleSecs ? `${Math.round(a.settleSecs / 60)}m` : "—"}</td>
                 <td className="truncate" title={a.webhookUrl}>
                   {a.webhookUrl.replace(/^https?:\/\//, "").slice(0, 28)}…
                 </td>

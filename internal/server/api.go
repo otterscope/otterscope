@@ -540,6 +540,9 @@ func (s *Server) handleCreateAlert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rule.Enabled = true
+	// Watcher-owned state: never accept it from the client.
+	rule.Firing = false
+	rule.PendingSinceNS = 0
 	if rule.WindowSecs == 0 {
 		rule.WindowSecs = 3600
 	}
