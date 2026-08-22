@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "./api";
-import type { FilterState } from "./Filters";
+import type { FilterState } from "./filters";
 
 type View = { id: number; name: string; params: FilterState };
 
