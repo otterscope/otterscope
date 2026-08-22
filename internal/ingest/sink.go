@@ -50,15 +50,17 @@ func (s *StoreSink) ConsumeTraces(ctx context.Context, project string, td ptrace
 		s.notify()
 	}
 	if s.eval != nil {
+		// Carry the project with each run id: the evaluator cannot recover it
+		// from the id alone (#98).
 		seen := map[string]bool{}
-		var runIDs []string
+		var refs []RunRef
 		for _, st := range steps {
 			if !seen[st.RunID] {
 				seen[st.RunID] = true
-				runIDs = append(runIDs, st.RunID)
+				refs = append(refs, RunRef{Project: project, ID: st.RunID})
 			}
 		}
-		s.eval.Enqueue(runIDs)
+		s.eval.Enqueue(refs)
 	}
 	return nil
 }

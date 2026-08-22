@@ -11,16 +11,29 @@ import (
 	"github.com/otterscope/otterscope/internal/store"
 )
 
+// RunRef identifies a run for evaluation. A trace id alone does not: the
+// same id can exist in more than one project, and resolving it without the
+// project scored runs against the wrong project's assertions (#98).
+type RunRef struct {
+	Project string
+	ID      string
+}
+
 // EvaluateRuns scores each completed run against its project's enabled
 // assertions. Deterministic assertions always run; llm_judge assertions run
 // subject to their sampleRate, or unconditionally when judgeAll is set
-// (on-demand backfill). Safe to re-run: results upsert by (run, assertion).
-func EvaluateRuns(ctx context.Context, st *store.Store, judge evals.Endpoint, runIDs []string, judgeAll bool) error {
+// (on-demand backfill). Safe to re-run: results upsert by
+// (project, run, assertion).
+func EvaluateRuns(ctx context.Context, st *store.Store, judge evals.Endpoint, refs []RunRef, judgeAll bool) error {
 	cache := map[string][]evals.Assertion{} // project → enabled assertions
-	for _, id := range runIDs {
-		run, steps, err := st.GetRun(ctx, id)
+	for _, ref := range refs {
+		project := ref.Project
+		if project == "" {
+			project = "default"
+		}
+		run, steps, err := st.GetRunInProject(ctx, project, ref.ID)
 		if err != nil {
-			return fmt.Errorf("load run %s: %w", id, err)
+			return fmt.Errorf("load run %s/%s: %w", project, ref.ID, err)
 		}
 		if run.Status == model.StatusRunning {
 			continue // scored once the root span arrives
@@ -31,7 +44,6 @@ func EvaluateRuns(ctx context.Context, st *store.Store, judge evals.Endpoint, ru
 			if err != nil {
 				return err
 			}
-			asserts = asserts[:0]
 			for _, a := range all {
 				if a.Enabled {
 					asserts = append(asserts, a)
@@ -47,7 +59,7 @@ func EvaluateRuns(ctx context.Context, st *store.Store, judge evals.Endpoint, ru
 		var judged map[int64]bool
 		if !judgeAll {
 			judged = map[int64]bool{}
-			if existing, err := st.ResultsForRun(ctx, id); err == nil {
+			if existing, err := st.ResultsForRun(ctx, run.Project, run.ID); err == nil {
 				for _, r := range existing {
 					judged[r.AssertionID] = true
 				}
@@ -66,8 +78,8 @@ func EvaluateRuns(ctx context.Context, st *store.Store, judge evals.Endpoint, ru
 			}
 			results = append(results, evals.Evaluate(a, run, steps))
 		}
-		if err := st.SaveAssertionResults(ctx, run.ID, results); err != nil {
-			return fmt.Errorf("save results for %s: %w", id, err)
+		if err := st.SaveAssertionResults(ctx, run.Project, run.ID, results); err != nil {
+			return fmt.Errorf("save results for %s/%s: %w", run.Project, run.ID, err)
 		}
 	}
 	return nil
@@ -100,15 +112,15 @@ func EvaluateProject(ctx context.Context, st *store.Store, judge evals.Endpoint,
 		if len(runs) == 0 {
 			return total, nil
 		}
-		ids := make([]string, 0, len(runs))
+		refs := make([]RunRef, 0, len(runs))
 		for _, r := range runs {
 			if r.Status != model.StatusRunning {
-				ids = append(ids, r.ID)
+				refs = append(refs, RunRef{Project: r.Project, ID: r.ID})
 			}
 		}
-		if err := EvaluateRuns(ctx, st, judge, ids, true); err != nil {
+		if err := EvaluateRuns(ctx, st, judge, refs, true); err != nil {
 			return total, err
 		}
-		total += len(ids)
+		total += len(refs)
 	}
 }
