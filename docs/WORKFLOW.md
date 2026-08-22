@@ -4,6 +4,7 @@ This is the operating procedure for all work on Otterscope, whether done by a hu
 
 ## 1. Before writing code
 
+0. **Check nobody is already on it**: `gh pr list --search "<issue number>"` and look at the issue's linked PRs before writing code. An outside contributor opened #112 within an hour of #105 being filed; it was duplicated and merged over because nobody looked.
 1. **Work only from a GitHub issue.** If the work has no issue, create one first with: problem statement, acceptance criteria, and which milestone it belongs to. Unplanned work discovered mid-task becomes a *new issue*, not scope creep on the current one.
 2. **Read the context**: `CLAUDE.md`, the relevant ADRs in `docs/adr/`, and the code you're about to touch. If the issue contradicts an ADR, resolve that first (new ADR or issue comment), don't code around it.
 3. **State the plan on the issue** (a short comment): approach, files touched, how it will be verified. This is the tech-debt checkpoint — if the plan needs a hack, say so explicitly and file the follow-up issue *before* merging the hack.
@@ -21,10 +22,11 @@ This is the operating procedure for all work on Otterscope, whether done by a hu
 9. **Quality gate**: `go build ./... && go vet ./... && go test ./...` (and `cd web && npm run lint && npm test && npm run build` if the frontend changed) must pass locally and in CI. CI runs all six, so a gate that passes locally is the gate that ran.
 10. **Update the paper trail in the same PR**: ADR if an architectural decision was made, `docs/ROADMAP.md` if scope/timeline shifted, `CLAUDE.md` if the architecture map changed, README if user-facing behavior changed.
 11. **PR → squash-merge to `main`**, referencing the issue (`Closes #N`). Delete the branch.
+    - Closing **several** issues needs the keyword repeated: `Closes #12, Closes #13`. GitHub honours it only for the first number in a comma-separated list, so `Closes #12, #13` closes #12 and silently leaves #13 open — this stranded nine already-fixed issues after PRs #110 and #114.
 
 ## 4. After merging
 
-12. **Close the loop**: confirm the issue auto-closed, move follow-up items into their own issues with milestone labels.
+12. **Close the loop**: confirm the issue auto-closed (`gh issue view N --json state`) — don't assume it did, see the multi-issue trap above — and move follow-up items into their own issues with milestone labels.
 13. **Never leave `main` broken.** If CI fails post-merge, fixing it preempts all other work.
 
 ## Tech-debt policy
