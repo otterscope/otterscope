@@ -120,9 +120,11 @@ func (w *Watcher) evaluateOnce(ctx context.Context) {
 		if !firable {
 			continue
 		}
-		if !w.settled(ctx, r, firing) {
+		if !w.readyToNotify(ctx, r, firing) {
 			continue
 		}
+		// readyToNotify guarantees firing != r.Firing, so these two cases are
+		// exhaustive; the switch only picks the direction.
 		switch {
 		case firing && !r.Firing:
 			w.notify(ctx, r, "firing", detail)
@@ -138,7 +140,10 @@ func (w *Watcher) evaluateOnce(ctx context.Context) {
 	}
 }
 
-// settled reports whether the rule may act on its current reading.
+// readyToNotify reports whether the rule should send a notification for its
+// current reading. False covers two different situations: the reading matches
+// the state we last notified about (nothing to say), or the condition has
+// flipped but has not held long enough to be worth saying.
 //
 // Flap suppression is symmetric on purpose: the condition must hold its new
 // state for SettleSecs before we notify in either direction. Suppressing only
@@ -150,7 +155,7 @@ func (w *Watcher) evaluateOnce(ctx context.Context) {
 //
 // SettleSecs == 0 keeps the original behaviour: act on the first evaluation
 // that flips.
-func (w *Watcher) settled(ctx context.Context, r store.Rule, firing bool) bool {
+func (w *Watcher) readyToNotify(ctx context.Context, r store.Rule, firing bool) bool {
 	if firing == r.Firing {
 		// Steady state. If a transition was pending it just flapped back, so
 		// the timer restarts from scratch next time.
