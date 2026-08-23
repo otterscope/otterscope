@@ -75,6 +75,13 @@ func normalizeSpan(sp ptrace.Span, service string) model.Step {
 		}
 		return st
 	}
+	if isClaudeCode(sp) {
+		applyClaudeCode(sp, &st)
+		if st.End.Before(st.Start) {
+			st.End = st.Start
+		}
+		return st
+	}
 
 	switch op := stringAttr(attrs, "gen_ai.operation.name"); op {
 	case "chat", "text_completion", "generate_content", "embeddings":

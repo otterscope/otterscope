@@ -71,7 +71,7 @@ claude mcp add otterscope --transport http http://localhost:8317/mcp
 
 ## Connecting your framework
 
-Guides for [Pydantic AI](docs/frameworks/pydantic-ai.md), [OpenAI Agents SDK](docs/frameworks/openai-agents.md), [Vercel AI SDK](docs/frameworks/vercel-ai-sdk.md), [LangGraph](docs/frameworks/langgraph.md), and [anything else that speaks OTLP](docs/frameworks/generic-otlp.md).
+Guides for [Pydantic AI](docs/frameworks/pydantic-ai.md), [OpenAI Agents SDK](docs/frameworks/openai-agents.md), [Vercel AI SDK](docs/frameworks/vercel-ai-sdk.md), [LangGraph](docs/frameworks/langgraph.md), [Claude Agent SDK / Claude Code](docs/frameworks/claude-agent-sdk.md), and [anything else that speaks OTLP](docs/frameworks/generic-otlp.md).
 
 ## Why not Langfuse / LangSmith / Phoenix?
 

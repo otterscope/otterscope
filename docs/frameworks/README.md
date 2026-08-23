@@ -16,8 +16,12 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <ingest-key>"
 | OpenAI Agents SDK | [openai-agents.md](openai-agents.md) | OpenInference |
 | Vercel AI SDK | [vercel-ai-sdk.md](vercel-ai-sdk.md) | ai.* + gen_ai hybrid |
 | LangGraph / LangChain | [langgraph.md](langgraph.md) | OTel GenAI via instrumentor |
+| Claude Agent SDK / Claude Code | [claude-agent-sdk.md](claude-agent-sdk.md) | `claude_code.*` (its own dialect) |
 | Anything else | [generic-otlp.md](generic-otlp.md) | OTel GenAI conventions |
 
 Message content (prompts/completions) is opt-in in most instrumentations —
 each guide shows the flag. Without it you still get runs, steps, latency,
-tokens, and cost; with it the run inspector shows full conversations.
+tokens, and cost; with it the run inspector shows full conversations. The
+exception is the Claude Agent SDK, which sends conversation content over the
+logs protocol rather than on spans, so its runs never carry messages — see
+that guide for what it does carry.
