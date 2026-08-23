@@ -18,14 +18,21 @@ runs, and a compare view for "did this week get worse than last week".
 
 Design choices that might interest HN:
 
-- It normalizes three trace dialects (OTel GenAI old + experimental,
-  OpenInference, Vercel AI SDK) because the ecosystem hasn't converged.
-  Raw payloads are retained so old data re-normalizes as the conventions
-  stabilize.
+- It normalizes four trace dialects (OTel GenAI old + experimental,
+  OpenInference, Vercel AI SDK, and Claude Code's own `claude_code.*`
+  spans) because the ecosystem hasn't converged. Raw payloads are retained
+  so old data re-normalizes as the conventions stabilize — `otterscope
+  renormalize` replays every batch you ever received through the current
+  normalizer.
 - Costs come from a maintained pricing table; unknown models show tokens
   and an explicit "partial" flag rather than a fabricated total.
 - Judge evals call any OpenAI-compatible endpoint with a key from your
   env — keys never touch the database.
+- It exposes its own data over MCP, so an agent can query its own traces:
+  "why did my last run fail" answered from the tool that recorded it.
+- Alerts on error rate, cost, or latency POST to a webhook, with a settle
+  time so a metric sitting on the threshold doesn't page you twice a
+  minute.
 - Apache-2.0, no metering, no seat fees, no paid tier and no hosted
   version planned — there's nothing to upsell you to.
 
