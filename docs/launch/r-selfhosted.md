@@ -12,13 +12,17 @@ your prompts to a SaaS — I built Otterscope for exactly that.
   container. Data is a single SQLite file in a volume. That's the whole
   stack.
 - **Ingest:** standard OpenTelemetry — works with Pydantic AI, OpenAI
-  Agents SDK, LangGraph, Vercel AI SDK, or hand-rolled OTLP.
+  Agents SDK, LangGraph, Vercel AI SDK, the Claude Agent SDK, or
+  hand-rolled OTLP.
 - **Get:** live run list with filters, a per-run timeline (LLM calls with
   full messages, tool calls with args/results), token + cost tracking,
   assertions & LLM-judge evals on your real traffic, and a side-by-side
   compare view.
 - **Retention:** unlimited by default (it's your disk); optional
   `-retention` sweep if you want cleanup.
+- **Ops:** Prometheus metrics at `/metrics`, alert rules with webhooks
+  (Slack/Discord auto-formatted), an audit log of every mutation, and
+  `otterscope backup` for a consistent snapshot.
 - Apache-2.0, no paid tier and no hosted version. Multi-project ingest
   keys if you run several agents.
 
