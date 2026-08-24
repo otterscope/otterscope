@@ -110,8 +110,10 @@ reaches Otterscope:
 
 - `OTEL_LOG_TOOL_DETAILS=1` — the command, file path, or skill name a tool was
   called with.
-- `OTEL_LOG_TOOL_CONTENT=1` — full tool input and output bodies (truncated at
-  60 KB), which is what fills in the tool inspector.
+- `OTEL_LOG_TOOL_CONTENT=1` — the tool's output body (truncated at 60 KB),
+  which is what fills in the tool inspector. On a real run the event carries
+  the body under `content`, alongside an echo of the tool's own input
+  attributes — so a `Read` shows the file path and the file's contents.
 
 **Conversation content is not available over traces at all.** Claude Code
 sends prompts and API bodies as OTLP *log records* (`OTEL_LOG_USER_PROMPTS`,
@@ -123,6 +125,29 @@ Tracked in [#119](https://github.com/otterscope/otterscope/issues/119).
 
 Leave the content flags off unless Otterscope's disk is an acceptable place
 for whatever your agent reads.
+
+### Every span identifies the operator
+
+This one is not a flag you can turn off, and it is easy to miss. The CLI
+attaches identity attributes drawn from the credential it authenticated with
+to **every** span:
+
+```
+user.email          you@example.com
+organization.id     7c7c6cbb-…
+user.account_uuid   32acac28-…
+user.account_id     user_017Fw…
+user.id             <anonymous hash>
+session.id          <per-session uuid>
+```
+
+So an Otterscope instance receiving Claude Code traces stores the operator's
+email address on every span, and `otterscope backup` copies it. That is
+usually fine for a personal instance and worth knowing before you point a
+shared instance at it, or before you hand a database to someone else. Note
+too that these identify *your service's credential*, not the end user your
+agent acted for — see the upstream guide on `OTEL_RESOURCE_ATTRIBUTES` if you
+need per-user attribution.
 
 ## Caveats
 
@@ -136,6 +161,13 @@ for whatever your agent reads.
 - **Short-lived processes lose spans.** Traces export every 5 seconds by
   default; lower `OTEL_TRACES_EXPORT_INTERVAL` for scripts that finish faster
   than that.
+- **A run arrives across several batches, root last.** The
+  `claude_code.interaction` span is exported after its children, so a run
+  shows as `running` for a second or two before it settles.
+- **Model ids carry a context suffix.** A run reports e.g.
+  `claude-opus-5[1m]`, not `claude-opus-5`. Otterscope's pricing table matches
+  by longest prefix so the cost still resolves, but a `-pricing` override file
+  needs the prefix, not the full string.
 - Spans carry a `session.id`; several `query()` calls against one session are
   separate Otterscope runs unless your application wraps them in a span of its
   own (the SDK propagates `TRACEPARENT` into the CLI, so an outer span makes
