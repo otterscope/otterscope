@@ -66,12 +66,9 @@ func applyClaudeCode(sp ptrace.Span, st *model.Step) {
 		if st.Tool.Name == "" {
 			st.Tool.Name = sp.Name()
 		}
-		// Full input/output bodies arrive as a span event, not attributes,
-		// and only under OTEL_LOG_TOOL_CONTENT=1.
-		if in, out := claudeCodeToolContent(sp); in != "" || out != "" {
-			if in != "" {
-				st.Tool.Arguments = in
-			}
+		// The output body arrives as a span event, not an attribute, and only
+		// under OTEL_LOG_TOOL_CONTENT=1.
+		if out := claudeCodeToolResult(sp); out != "" {
 			st.Tool.Result = out
 		}
 
@@ -93,9 +90,13 @@ func applyClaudeCode(sp ptrace.Span, st *model.Step) {
 }
 
 // applyClaudeCodeFailure marks a step failed from the CLI's own attributes.
-// `success` is the string "true"/"false", not a bool, and the span status is
-// often left unset even on a failed request — so the span status alone is not
-// enough to notice an error.
+// The span status is left unset even on a failed request, so span status alone
+// is not enough to notice an error.
+//
+// The upstream reference documents `success` as the string "true"/"false"; on
+// the wire it is a bool. stringAttr goes through Value.AsString, which renders
+// both as "true"/"false", so this comparison holds either way — do not
+// "simplify" it to a bool accessor.
 func applyClaudeCodeFailure(attrs pcommon.Map, st *model.Step) {
 	if stringAttr(attrs, "success") != "false" {
 		return
@@ -125,31 +126,35 @@ func claudeCodeToolArgs(attrs pcommon.Map) string {
 	return ""
 }
 
-// claudeCodeToolContent pulls tool input/output from the `tool.output` span
-// event emitted under OTEL_LOG_TOOL_CONTENT=1.
+// claudeCodeToolResult pulls the tool's output body from the `tool.output`
+// span event emitted under OTEL_LOG_TOOL_CONTENT=1.
 //
-// The event's attribute keys are not pinned by the upstream reference (only
-// the event name is), and the dialect is beta, so match on the key containing
-// "input"/"output" rather than guessing one exact spelling and silently
-// recording nothing when it changes.
-// TODO(#118): pin the real keys once a live payload is captured.
-func claudeCodeToolContent(sp ptrace.Span) (input, output string) {
+// The upstream reference names the event but not its attributes. A real
+// capture (Claude Code 2.1.241, Read tool) carries them as `content` for the
+// body plus an echo of the tool's own input attributes — `file_path` here —
+// so there is no key called "output" to look for. `content` is the body for
+// every tool; the suffix match is a hedge for a rename in a beta dialect.
+func claudeCodeToolResult(sp ptrace.Span) string {
 	events := sp.Events()
 	for i := 0; i < events.Len(); i++ {
 		ev := events.At(i)
 		if ev.Name() != "tool.output" {
 			continue
 		}
+		if v := stringAttr(ev.Attributes(), "content"); v != "" {
+			return v
+		}
+		var fallback string
 		ev.Attributes().Range(func(k string, v pcommon.Value) bool {
 			lk := strings.ToLower(k)
-			switch {
-			case input == "" && strings.Contains(lk, "input"):
-				input = v.AsString()
-			case output == "" && strings.Contains(lk, "output"):
-				output = v.AsString()
+			if fallback == "" && (strings.Contains(lk, "output") || strings.Contains(lk, "result")) {
+				fallback = v.AsString()
 			}
 			return true
 		})
+		if fallback != "" {
+			return fallback
+		}
 	}
-	return input, output
+	return ""
 }
