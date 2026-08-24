@@ -12,7 +12,8 @@
     "lint": "oxlint --deny-warnings",
     "test": "vitest run",
     "test:watch": "vitest",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "screenshots": "node tools/screenshots.mjs"
   },
   "dependencies": {
     "react": "^19.2.7",
@@ -25,6 +26,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "happy-dom": "^20.11.6",
     "oxlint": "^1.71.0",
+    "playwright": "^1.62.1",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
     "vitest": "^4.1.11"

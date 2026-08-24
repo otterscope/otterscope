@@ -26,8 +26,9 @@ var flavors = []flavor{
 	{"checkout-assistant", "cart-helper", "gpt-5.4-mini", "openai", []string{"get_cart", "apply_coupon"}},
 }
 
-// Seed inserts n sample runs spread over the past 7 days plus two demo
-// assertions with results.
+// Seed inserts n sample runs spread over the past 7 days, two demo assertions
+// with results, and three alert rules — one already firing, so the alerts
+// screen shows both states rather than an empty table.
 func Seed(ctx context.Context, st *store.Store, n int) error {
 	rng := rand.New(rand.NewSource(42)) // deterministic demo data
 	prices := pricing.Default()
@@ -42,6 +43,10 @@ func Seed(ctx context.Context, st *store.Store, n int) error {
 		Name: "no-refusals", Type: "not_contains", Config: "I cannot help", Enabled: true,
 	})
 	if err != nil {
+		return err
+	}
+
+	if err := seedAlerts(ctx, st); err != nil {
 		return err
 	}
 
@@ -157,4 +162,40 @@ func sampleAnswer(rng *rand.Rand, final, failed bool) string {
 		"That charge is the annual plan renewal from March 3rd; I've emailed the invoice.",
 	}
 	return as[rng.Intn(len(as))]
+}
+
+// seedAlerts creates demo alert rules. The webhook URLs point at
+// example.invalid so a demo instance cannot post anywhere real, and one rule
+// is left firing so the badge and the settle column both have something to
+// show.
+func seedAlerts(ctx context.Context, st *store.Store) error {
+	rules := []store.Rule{
+		{
+			Name: "error-rate-over-10pct", Type: "error_rate", Threshold: 0.1,
+			WindowSecs: 3600, SettleSecs: 300, Enabled: true,
+			WebhookURL: "https://hooks.example.invalid/demo",
+		},
+		{
+			Name: "hourly-spend-over-5usd", Type: "cost", Threshold: 5,
+			WindowSecs: 3600, SettleSecs: 900, Enabled: true,
+			WebhookURL: "https://hooks.example.invalid/demo",
+		},
+		{
+			Name: "p95-over-20s", Type: "p95_latency", Threshold: 20000,
+			WindowSecs: 86400, Enabled: true,
+			WebhookURL: "https://hooks.example.invalid/demo",
+		},
+	}
+	for i, r := range rules {
+		created, err := st.CreateAlert(ctx, r)
+		if err != nil {
+			return fmt.Errorf("seed alert %s: %w", r.Name, err)
+		}
+		if i == 0 {
+			if err := st.SetAlertFiring(ctx, created.ID, true); err != nil {
+				return fmt.Errorf("seed firing state: %w", err)
+			}
+		}
+	}
+	return nil
 }
