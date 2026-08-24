@@ -1,7 +1,32 @@
-import { chromium } from "/home/kalin/otterscope/web/node_modules/playwright/index.mjs";
+// Regenerates the README screenshots. Run it from web/ (`npm run screenshots`)
+// so the bare `playwright` specifier resolves against web/node_modules — this
+// file lives inside web/ for exactly that reason, and playwright is a
+// devDependency there. It was previously in a top-level tools/ directory
+// importing playwright by absolute path, which meant nothing connected the
+// dependency to its only consumer, and the dependency got removed as unused
+// (#124).
+//
+// Needs an otterscope already serving sample data:
+//   otterscope sample -db demo.db && otterscope serve -db demo.db -listen 127.0.0.1:8324
+// Override the address with OTTERSCOPE_URL.
+import { chromium } from "playwright";
+import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-const BASE = "http://localhost:8324";
-const OUT = "/home/kalin/otterscope/docs/screenshots";
+const BASE = process.env.OTTERSCOPE_URL ?? "http://localhost:8324";
+const OUT = fileURLToPath(new URL("../../docs/screenshots", import.meta.url));
+mkdirSync(OUT, { recursive: true });
+
+// Fail with something readable rather than a Playwright timeout if the server
+// is not up — the previous version just hung on waitForSelector.
+try {
+  const res = await fetch(BASE + "/healthz");
+  if (!res.ok) throw new Error("status " + res.status);
+} catch (err) {
+  console.error(`No otterscope at ${BASE} (${err.message}).
+Start one with sample data first, or set OTTERSCOPE_URL.`);
+  process.exit(1);
+}
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
