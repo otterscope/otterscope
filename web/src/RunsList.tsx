@@ -8,7 +8,7 @@ import {
   apiFetch,
   csvTruncationNotice,
 } from "./api";
-import Filters from "./Filters";
+import Filters from "./RunFilters";
 import {
   filtersFromURL,
   filtersToQuery,
