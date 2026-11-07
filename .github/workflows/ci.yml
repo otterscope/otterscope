@@ -39,3 +39,19 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test -timeout 120s ./...
+
+  web-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: web
+      - name: Build frontend
+        run: npm run build
+        working-directory: web
